@@ -37,11 +37,7 @@ export default async function CustomerDetailPage({
     if (!title) return
 
     await supabase.from('service_jobs').insert([
-      {
-        customer_id: id,
-        title,
-        description,
-      },
+      { customer_id: id, title, description },
     ])
 
     revalidatePath(`/customers/${id}`)
@@ -53,9 +49,7 @@ export default async function CustomerDetailPage({
     const supabase = await createClient()
 
     const file = formData.get('file')
-    if (!(file instanceof File) || file.size === 0) {
-      throw new Error('No file was selected.')
-    }
+    if (!(file instanceof File) || file.size === 0) return
 
     const bytes = new Uint8Array(await file.arrayBuffer())
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
@@ -65,29 +59,17 @@ export default async function CustomerDetailPage({
       .from('customer-images')
       .upload(filePath, bytes, {
         contentType: file.type || 'application/octet-stream',
-        upsert: false,
       })
 
-    if (uploadError) {
-      throw new Error(`Upload failed: ${uploadError.message}`)
-    }
+    if (uploadError) return
 
-    const { data: publicUrlData } = supabase.storage
+    const { data } = supabase.storage
       .from('customer-images')
       .getPublicUrl(filePath)
 
-    const { error: insertError } = await supabase
-      .from('customer_images')
-      .insert([
-        {
-          customer_id: id,
-          image_url: publicUrlData.publicUrl,
-        },
-      ])
-
-    if (insertError) {
-      throw new Error(`Database insert failed: ${insertError.message}`)
-    }
+    await supabase.from('customer_images').insert([
+      { customer_id: id, image_url: data.publicUrl },
+    ])
 
     revalidatePath(`/customers/${id}`)
   }
@@ -104,13 +86,11 @@ export default async function CustomerDetailPage({
     .from('service_jobs')
     .select('*')
     .eq('customer_id', id)
-    .order('created_at', { ascending: false })
 
   const { data: images } = await supabase
     .from('customer_images')
     .select('*')
     .eq('customer_id', id)
-    .order('created_at', { ascending: false })
 
   if (!customer) {
     return <main style={{ padding: 20 }}>Customer not found.</main>
@@ -118,85 +98,73 @@ export default async function CustomerDetailPage({
 
   return (
     <main style={{ padding: 20 }}>
-      <Link href="/customers">← Back to Customers</Link>
+      <Link href="/customers">← Back</Link>
 
-      <h1 style={{ marginTop: 20 }}>{customer.full_name}</h1>
+      <h1>{customer.full_name}</h1>
 
       <p><strong>Phone:</strong> {customer.phone}</p>
       <p><strong>Email:</strong> {customer.email}</p>
 
-      <h3>Notes</h3>
+      {/* FIXED HEADINGS */}
+      <h2>Notes</h2>
 
       <form action={updateNotes}>
+        <label htmlFor="notes">Customer Notes</label><br />
         <textarea
+          id="notes"
           name="notes"
           defaultValue={customer.notes || ''}
           rows={4}
           style={{ width: '100%' }}
         />
         <br />
-        <button type="submit" style={{ marginTop: 10 }}>
-          Save Notes
-        </button>
+        <button type="submit">Save Notes</button>
       </form>
 
-      <h3 style={{ marginTop: 30 }}>Add Service Job</h3>
+      <h2>Add Service Job</h2>
 
-      <form action={addJob} style={{ marginBottom: 20 }}>
-        <input name="title" placeholder="Job title" required />
-        <input
-          name="description"
-          placeholder="Description"
-          style={{ marginLeft: 8, width: 300 }}
-        />
-        <button type="submit" style={{ marginLeft: 8 }}>
-          Add Job
-        </button>
+      <form action={addJob}>
+        <label htmlFor="title">Job Title</label><br />
+        <input id="title" name="title" required />
+
+        <br />
+
+        <label htmlFor="description">Description</label><br />
+        <input id="description" name="description" />
+
+        <br />
+        <button type="submit">Add Job</button>
       </form>
 
-      <h3>Service Jobs</h3>
+      <h2>Service Jobs</h2>
 
-      {jobs?.length ? (
-        jobs.map((job: any) => (
-          <div
-            key={job.id}
-            style={{
-              border: '1px solid #ccc',
-              padding: 12,
-              marginBottom: 10,
-            }}
-          >
-            <strong>{job.title}</strong><br />
-            {job.description}<br />
-            Status: {job.status}
-          </div>
-        ))
-      ) : (
-        <p>No jobs yet.</p>
-      )}
+      {jobs?.map((job: any) => (
+        <div key={job.id}>
+          <strong>{job.title}</strong><br />
+          {job.description}
+        </div>
+      ))}
 
-      <h3 style={{ marginTop: 30 }}>Upload Image</h3>
+      <h2>Upload Image</h2>
 
-      {uploadMessage ? (
-        <pre style={{ color: 'tomato' }}>{uploadMessage}</pre>
-      ) : null}
+      {uploadMessage && <p style={{ color: 'red' }}>{uploadMessage}</p>}
 
       <form action={uploadImage}>
-        <input type="file" name="file" accept="image/*" required />
-        <button type="submit" style={{ marginLeft: 8 }}>
-          Upload
-        </button>
+        <label htmlFor="file">Choose Image</label><br />
+        <input id="file" type="file" name="file" accept="image/*" required />
+        <br />
+        <button type="submit">Upload</button>
       </form>
 
-      <h3 style={{ marginTop: 30 }}>Images</h3>
+      <h2>Images</h2>
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         {images?.map((img: any) => (
           <img
             key={img.id}
             src={img.image_url}
-            alt="Customer upload"
-            style={{ width: 150, height: 150, objectFit: 'cover', border: '1px solid #ccc' }}
+            alt="upload"
+            style={{ width: 150 }}
           />
         ))}
       </div>
