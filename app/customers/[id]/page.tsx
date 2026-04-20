@@ -1,19 +1,17 @@
 import Link from 'next/link'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import UploadImage from './UploadImage'
 
 export default async function CustomerDetailPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ error?: string }>
 }) {
   const { id } = await params
-  const { error: uploadMessage } = await searchParams
 
   async function updateNotes(formData: FormData) {
-    "use server"
+    'use server'
 
     const supabase = await createClient()
     const notes = String(formData.get('notes') ?? '')
@@ -27,7 +25,7 @@ export default async function CustomerDetailPage({
   }
 
   async function addJob(formData: FormData) {
-    "use server"
+    'use server'
 
     const supabase = await createClient()
 
@@ -37,38 +35,11 @@ export default async function CustomerDetailPage({
     if (!title) return
 
     await supabase.from('service_jobs').insert([
-      { customer_id: id, title, description },
-    ])
-
-    revalidatePath(`/customers/${id}`)
-  }
-
-  async function uploadImage(formData: FormData) {
-    "use server"
-
-    const supabase = await createClient()
-
-    const file = formData.get('file')
-    if (!(file instanceof File) || file.size === 0) return
-
-    const bytes = new Uint8Array(await file.arrayBuffer())
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-    const filePath = `${id}/${Date.now()}_${safeName}`
-
-    const { error: uploadError } = await supabase.storage
-      .from('customer-images')
-      .upload(filePath, bytes, {
-        contentType: file.type || 'application/octet-stream',
-      })
-
-    if (uploadError) return
-
-    const { data } = supabase.storage
-      .from('customer-images')
-      .getPublicUrl(filePath)
-
-    await supabase.from('customer_images').insert([
-      { customer_id: id, image_url: data.publicUrl },
+      {
+        customer_id: id,
+        title,
+        description,
+      },
     ])
 
     revalidatePath(`/customers/${id}`)
@@ -86,11 +57,13 @@ export default async function CustomerDetailPage({
     .from('service_jobs')
     .select('*')
     .eq('customer_id', id)
+    .order('created_at', { ascending: false })
 
   const { data: images } = await supabase
     .from('customer_images')
     .select('*')
     .eq('customer_id', id)
+    .order('created_at', { ascending: false })
 
   if (!customer) {
     return <main style={{ padding: 20 }}>Customer not found.</main>
@@ -98,18 +71,18 @@ export default async function CustomerDetailPage({
 
   return (
     <main style={{ padding: 20 }}>
-      <Link href="/customers">← Back</Link>
+      <Link href="/customers">← Back to Customers</Link>
 
-      <h1>{customer.full_name}</h1>
+      <h1 style={{ marginTop: 20 }}>{customer.full_name}</h1>
 
       <p><strong>Phone:</strong> {customer.phone}</p>
       <p><strong>Email:</strong> {customer.email}</p>
 
-      {/* FIXED HEADINGS */}
       <h2>Notes</h2>
 
       <form action={updateNotes}>
-        <label htmlFor="notes">Customer Notes</label><br />
+        <label htmlFor="notes">Customer Notes</label>
+        <br />
         <textarea
           id="notes"
           name="notes"
@@ -118,53 +91,73 @@ export default async function CustomerDetailPage({
           style={{ width: '100%' }}
         />
         <br />
-        <button type="submit">Save Notes</button>
+        <button type="submit" style={{ marginTop: 10 }}>
+          Save Notes
+        </button>
       </form>
 
-      <h2>Add Service Job</h2>
+      <h2 style={{ marginTop: 30 }}>Add Service Job</h2>
 
-      <form action={addJob}>
-        <label htmlFor="title">Job Title</label><br />
+      <form action={addJob} style={{ marginBottom: 20 }}>
+        <label htmlFor="title">Job Title</label>
+        <br />
         <input id="title" name="title" required />
 
         <br />
-
-        <label htmlFor="description">Description</label><br />
-        <input id="description" name="description" />
+        <label htmlFor="description" style={{ display: 'inline-block', marginTop: 8 }}>
+          Description
+        </label>
+        <br />
+        <input id="description" name="description" style={{ width: 300 }} />
 
         <br />
-        <button type="submit">Add Job</button>
+        <button type="submit" style={{ marginTop: 8 }}>
+          Add Job
+        </button>
       </form>
 
       <h2>Service Jobs</h2>
 
-      {jobs?.map((job: any) => (
-        <div key={job.id}>
-          <strong>{job.title}</strong><br />
-          {job.description}
-        </div>
-      ))}
+      {jobs?.length ? (
+        jobs.map((job: any) => (
+          <div
+            key={job.id}
+            style={{
+              border: '1px solid #ccc',
+              padding: 12,
+              marginBottom: 10,
+            }}
+          >
+            <strong>
+              <Link href={`/jobs/${job.id}`}>{job.title}</Link>
+            </strong>
+            <br />
+            {job.description}
+            <br />
+            Status: {job.status}
+          </div>
+        ))
+      ) : (
+        <p>No jobs yet.</p>
+      )}
 
-      <h2>Upload Image</h2>
+      <h2 style={{ marginTop: 30 }}>Upload Image</h2>
+      <UploadImage customerId={id} />
 
-      {uploadMessage && <p style={{ color: 'red' }}>{uploadMessage}</p>}
-
-      <form action={uploadImage}>
-        <label htmlFor="file">Choose Image</label><br />
-        <input id="file" type="file" name="file" accept="image/*" required />
-        <br />
-        <button type="submit">Upload</button>
-      </form>
-
-      <h2>Images</h2>
+      <h2 style={{ marginTop: 30 }}>Images</h2>
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         {images?.map((img: any) => (
           <img
             key={img.id}
             src={img.image_url}
-            alt="upload"
-            style={{ width: 150 }}
+            alt="Customer upload"
+            style={{
+              width: 150,
+              height: 150,
+              objectFit: 'cover',
+              border: '1px solid #ccc',
+            }}
           />
         ))}
       </div>
