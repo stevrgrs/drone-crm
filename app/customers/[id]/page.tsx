@@ -26,15 +26,18 @@ export default async function JobDetailPage({
   if (!job) {
     return (
       <main className="min-h-screen bg-slate-50 px-6 py-8">
-        <div className="mx-auto max-w-4xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-          Job not found.
-        </div>
+        Job not found.
       </main>
     )
   }
 
   return (
     <main className="min-h-screen bg-slate-50 px-6 py-8">
+
+      <div className="mb-6 rounded-2xl bg-red-600 p-6 text-3xl font-bold text-white">
+        TAILWIND TEST
+      </div>
+
       <div className="mx-auto max-w-5xl space-y-6">
         <div>
           <Link
