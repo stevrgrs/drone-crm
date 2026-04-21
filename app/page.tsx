@@ -5,6 +5,37 @@ function escapeLike(value: string) {
   return value.replace(/[%_,]/g, '')
 }
 
+function formatCurrency(value: number | string | null | undefined) {
+  if (value === null || value === undefined || value === '') return '—'
+  const amount = Number(value)
+  if (Number.isNaN(amount)) return String(value)
+  return `$${amount.toFixed(2)}`
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleDateString('en-US')
+}
+
+function getDaysInShop(job: any) {
+  const source = job.date_in || job.created_at || null
+  if (!source) return null
+  const start = new Date(source)
+  if (Number.isNaN(start.getTime())) return null
+  const now = new Date()
+  const diff = now.getTime() - start.getTime()
+  return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)))
+}
+
+function getDaysBadgeClass(days: number | null) {
+  if (days === null) return 'bg-slate-800 text-slate-300'
+  if (days >= 30) return 'bg-red-500/15 text-red-300 border border-red-500/30'
+  if (days >= 14) return 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+  return 'bg-slate-800 text-slate-300 border border-slate-700'
+}
+
 export default async function Home({
   searchParams,
 }: {
@@ -196,36 +227,78 @@ export default async function Home({
                 <div className="space-y-4">
                   {jobs.map((job) => {
                     const customer = customerMap.get(job.customer_id)
+                    const daysInShop = getDaysInShop(job)
                     return (
                       <div
                         key={job.id}
-                        className="rounded-2xl border border-slate-800 bg-[#0b1220] p-5 shadow-lg shadow-black/10"
+                        className="rounded-[22px] border border-slate-800 bg-[#09111f] p-5 shadow-lg shadow-black/20"
                       >
-                        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                           <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-3">
-                              <h3 className="text-2xl font-bold text-white">{customer?.full_name || 'Unknown Customer'}</h3>
-                              {job.status && (
-                                <span className="rounded-full border border-red-500/40 bg-red-500/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-red-300">
-                                  {job.status}
+                            <div className="flex flex-wrap items-start justify-between gap-4">
+                              <div>
+                                <h3 className="text-3xl font-bold text-white">
+                                  {customer?.full_name || 'Unknown Customer'}
+                                </h3>
+                                <div className="mt-2 text-base text-red-400">
+                                  {customer?.phone || 'No phone'}
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                                {job.status && (
+                                  <span className="rounded-full bg-amber-500/15 px-3 py-1 text-sm font-medium text-amber-300 border border-amber-500/20">
+                                    {job.status}
+                                  </span>
+                                )}
+                                <span
+                                  className={`rounded-full px-3 py-1 text-sm font-medium ${getDaysBadgeClass(
+                                    daysInShop
+                                  )}`}
+                                >
+                                  {daysInShop === null ? 'No date' : `${daysInShop} day${daysInShop === 1 ? '' : 's'} in shop`}
                                 </span>
-                              )}
+                              </div>
                             </div>
 
-                            <p className="mt-2 text-base text-slate-300">{job.title || 'Untitled Repair'}</p>
+                            <div className="mt-6 grid gap-5 md:grid-cols-2">
+                              <div>
+                                <p className="text-sm uppercase tracking-wide text-slate-500">Drone</p>
+                                <p className="mt-1 text-2xl font-semibold text-white">
+                                  {job.title || 'Untitled Repair'}
+                                </p>
+                              </div>
 
-                            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-400">
-                              <span>{customer?.phone || 'No phone'}</span>
-                              {job.estimate != null && <span>Estimate: ${job.estimate}</span>}
-                              {job.final_price != null && <span>Final: ${job.final_price}</span>}
+                              <div>
+                                <p className="text-sm uppercase tracking-wide text-slate-500">Date In</p>
+                                <p className="mt-1 text-2xl font-semibold text-white">
+                                  {formatDate(job.date_in || job.created_at)}
+                                </p>
+                              </div>
+
+                              <div>
+                                <p className="text-sm uppercase tracking-wide text-slate-500">Estimate</p>
+                                <p className="mt-1 text-2xl font-semibold text-white">
+                                  {formatCurrency(job.estimate)}
+                                </p>
+                              </div>
+
+                              <div>
+                                <p className="text-sm uppercase tracking-wide text-slate-500">Actual Cost</p>
+                                <p className="mt-1 text-2xl font-semibold text-white">
+                                  {formatCurrency(job.final_price)}
+                                </p>
+                              </div>
                             </div>
 
                             {job.description && (
-                              <p className="mt-4 max-w-3xl text-sm text-slate-400">{job.description}</p>
+                              <div className="mt-5 border-t border-slate-800 pt-4 text-lg text-slate-400">
+                                {job.description}
+                              </div>
                             )}
                           </div>
 
-                          <div className="flex flex-wrap gap-2">
+                          <div className="flex shrink-0 flex-wrap gap-2 lg:w-[220px] lg:justify-end">
                             <Link
                               href={`/jobs/${job.id}`}
                               className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
