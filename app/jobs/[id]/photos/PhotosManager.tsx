@@ -1,7 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import UploadJobImage from '../UploadJobImage'
+import { useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/browser'
 
 type JobImage = {
@@ -24,8 +23,53 @@ export default function PhotosManager({
   images: JobImage[]
 }) {
   const supabase = useMemo(() => createClient(), [])
+  const inputRef = useRef<HTMLInputElement | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+
+  async function handleAddPhotos(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
+
+    setUploading(true)
+    try {
+      for (const file of files) {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+        const filePath = `jobs/${jobId}/${Date.now()}_${safeName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('customer-images')
+          .upload(filePath, file, {
+            upsert: false,
+            contentType: file.type || 'application/octet-stream',
+          })
+
+        if (uploadError) {
+          alert(uploadError.message)
+          return
+        }
+
+        const { data } = supabase.storage
+          .from('customer-images')
+          .getPublicUrl(filePath)
+
+        const { error: insertError } = await supabase
+          .from('job_images')
+          .insert([{ job_id: jobId, image_url: data.publicUrl }])
+
+        if (insertError) {
+          alert(insertError.message)
+          return
+        }
+      }
+
+      window.location.reload()
+    } finally {
+      setUploading(false)
+      if (inputRef.current) inputRef.current.value = ''
+    }
+  }
 
   async function handleDelete(image: JobImage) {
     const confirmed = window.confirm('Remove this photo?')
@@ -34,13 +78,11 @@ export default function PhotosManager({
     setDeletingId(image.id)
     try {
       const storagePath = getStoragePathFromPublicUrl(image.image_url)
-
       if (storagePath) {
         await supabase.storage.from('customer-images').remove([storagePath])
       }
 
       const { error } = await supabase.from('job_images').delete().eq('id', image.id)
-
       if (error) {
         alert(error.message)
         return
@@ -55,21 +97,35 @@ export default function PhotosManager({
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-800 bg-[#09111f] p-5">
-        <h2 className="text-xl font-semibold text-white">Add Photo</h2>
-        <p className="mt-2 text-sm text-slate-400">
-          Upload from your phone camera, photo library, or computer.
-        </p>
-        <div className="mt-4">
-          <UploadJobImage jobId={jobId} />
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-slate-800 bg-[#09111f] p-5">
         <div className="mb-4 flex items-center justify-between gap-4">
-          <h2 className="text-xl font-semibold text-white">Photos</h2>
-          <span className="rounded-full bg-slate-800 px-3 py-1 text-sm text-slate-300">
-            {images.length} image{images.length === 1 ? '' : 's'}
-          </span>
+          <div>
+            <h2 className="text-xl font-semibold text-white">Photos</h2>
+            <p className="mt-2 text-sm text-slate-400">
+              Click any photo to enlarge it.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="rounded-full bg-slate-800 px-3 py-1 text-sm text-slate-300">
+              {images.length} image{images.length === 1 ? '' : 's'}
+            </span>
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              disabled={uploading}
+              className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+            >
+              {uploading ? 'Adding...' : 'Add Photos'}
+            </button>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              capture="environment"
+              onChange={handleAddPhotos}
+              className="hidden"
+            />
+          </div>
         </div>
 
         {images.length ? (
