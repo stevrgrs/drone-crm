@@ -61,13 +61,33 @@ export default async function Home({
 
     customers = customerResults || []
 
-    const { data: jobResults } = await supabase
+    const matchedCustomerIds = customers.map((c) => c.id).filter(Boolean)
+
+    const { data: jobTextResults } = await supabase
       .from('service_jobs')
       .select('*')
       .or(`title.ilike.%${term}%,description.ilike.%${term}%,status.ilike.%${term}%`)
       .limit(20)
 
-    jobs = jobResults || []
+    const jobsById = new Map<string, any>()
+
+    for (const job of jobTextResults || []) {
+      jobsById.set(job.id, job)
+    }
+
+    if (matchedCustomerIds.length) {
+      const { data: customerJobResults } = await supabase
+        .from('service_jobs')
+        .select('*')
+        .in('customer_id', matchedCustomerIds)
+        .limit(50)
+
+      for (const job of customerJobResults || []) {
+        jobsById.set(job.id, job)
+      }
+    }
+
+    jobs = Array.from(jobsById.values())
 
     const customerIds = Array.from(
       new Set([
