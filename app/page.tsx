@@ -30,7 +30,7 @@ function getDaysInShop(job: any) {
 }
 
 function getDaysBadgeClass(days: number | null) {
-  if (days === null) return 'bg-slate-800 text-slate-300'
+  if (days === null) return 'bg-slate-800 text-slate-300 border border-slate-700'
   if (days >= 30) return 'bg-red-500/15 text-red-300 border border-red-500/30'
   if (days >= 14) return 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
   return 'bg-slate-800 text-slate-300 border border-slate-700'
@@ -46,12 +46,10 @@ export default async function Home({
 
   const supabase = await createClient()
 
-  let customers: any[] = []
-  let jobs: any[] = []
-  const customerMap = new Map<string, any>()
+  let customerCards: any[] = []
 
   if (term) {
-    const { data: customerResults } = await supabase
+    const { data: matchedCustomers } = await supabase
       .from('customers')
       .select('*')
       .or(
@@ -59,53 +57,67 @@ export default async function Home({
       )
       .limit(20)
 
-    customers = customerResults || []
+    const directCustomers = matchedCustomers || []
+    const directCustomerIds = directCustomers.map((c) => c.id).filter(Boolean)
 
-    const matchedCustomerIds = customers.map((c) => c.id).filter(Boolean)
-
-    const { data: jobTextResults } = await supabase
+    const { data: matchedJobsByText } = await supabase
       .from('service_jobs')
       .select('*')
       .or(`title.ilike.%${term}%,description.ilike.%${term}%,status.ilike.%${term}%`)
-      .limit(20)
+      .limit(50)
 
-    const jobsById = new Map<string, any>()
+    const textJobs = matchedJobsByText || []
+    const textJobCustomerIds = textJobs.map((job) => job.customer_id).filter(Boolean)
 
-    for (const job of jobTextResults || []) {
-      jobsById.set(job.id, job)
-    }
+    const allCustomerIds = Array.from(new Set([...directCustomerIds, ...textJobCustomerIds]))
 
-    if (matchedCustomerIds.length) {
-      const { data: customerJobResults } = await supabase
+    const { data: relatedCustomers } = allCustomerIds.length
+      ? await supabase.from('customers').select('*').in('id', allCustomerIds)
+      : { data: [] as any[] }
+
+    const allCustomers = relatedCustomers || []
+
+    const jobsByCustomer = new Map<string, any[]>()
+
+    if (directCustomerIds.length) {
+      const { data: allJobsForDirectCustomers } = await supabase
         .from('service_jobs')
         .select('*')
-        .in('customer_id', matchedCustomerIds)
-        .limit(50)
+        .in('customer_id', directCustomerIds)
+        .order('created_at', { ascending: false })
 
-      for (const job of customerJobResults || []) {
-        jobsById.set(job.id, job)
+      for (const job of allJobsForDirectCustomers || []) {
+        const list = jobsByCustomer.get(job.customer_id) || []
+        if (!list.some((existing) => existing.id === job.id)) {
+          list.push(job)
+        }
+        jobsByCustomer.set(job.customer_id, list)
       }
     }
 
-    jobs = Array.from(jobsById.values())
-
-    const customerIds = Array.from(
-      new Set([
-        ...customers.map((c) => c.id),
-        ...jobs.map((job) => job.customer_id).filter(Boolean),
-      ])
-    )
-
-    if (customerIds.length) {
-      const { data: relatedCustomers } = await supabase
-        .from('customers')
-        .select('*')
-        .in('id', customerIds)
-
-      for (const customer of relatedCustomers || []) {
-        customerMap.set(customer.id, customer)
+    for (const job of textJobs) {
+      const list = jobsByCustomer.get(job.customer_id) || []
+      if (!list.some((existing) => existing.id === job.id)) {
+        list.push(job)
       }
+      jobsByCustomer.set(job.customer_id, list)
     }
+
+    customerCards = allCustomers
+      .map((customer) => ({
+        ...customer,
+        jobs: (jobsByCustomer.get(customer.id) || []).sort((a, b) => {
+          const aTime = new Date(a.created_at || 0).getTime()
+          const bTime = new Date(b.created_at || 0).getTime()
+          return bTime - aTime
+        }),
+        directMatch: directCustomerIds.includes(customer.id),
+      }))
+      .sort((a, b) => {
+        if (a.directMatch && !b.directMatch) return -1
+        if (!a.directMatch && b.directMatch) return 1
+        return (a.full_name || '').localeCompare(b.full_name || '')
+      })
   }
 
   return (
@@ -159,198 +171,188 @@ export default async function Home({
               </p>
             </div>
             <div className="rounded-2xl border border-slate-800 bg-[#0b1220] p-6">
-              <h2 className="text-xl font-semibold">Search repairs</h2>
+              <h2 className="text-xl font-semibold">Repairs inside the same card</h2>
               <p className="mt-2 text-sm text-slate-400">
-                Find jobs by title, issue description, or status without digging through tables.
+                Search results group each customer with their repairs underneath.
               </p>
             </div>
             <div className="rounded-2xl border border-slate-800 bg-[#0b1220] p-6">
-              <h2 className="text-xl font-semibold">Open photos fast</h2>
+              <h2 className="text-xl font-semibold">Dedicated photos page</h2>
               <p className="mt-2 text-sm text-slate-400">
-                Every job result includes a Photos button so cards stay clean and uncluttered.
+                Photos open on a separate gallery page so the results stay clean.
               </p>
             </div>
           </div>
-        ) : (
-          <div className="space-y-8">
-            <section>
-              <div className="mb-4 flex items-center justify-between gap-4">
-                <h2 className="text-2xl font-semibold">Customers</h2>
-                <span className="rounded-full bg-slate-800 px-3 py-1 text-sm text-slate-300">
-                  {customers.length} result{customers.length === 1 ? '' : 's'}
-                </span>
-              </div>
+        ) : customerCards.length ? (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-2xl font-semibold">Results</h2>
+              <span className="rounded-full bg-slate-800 px-3 py-1 text-sm text-slate-300">
+                {customerCards.length} customer{customerCards.length === 1 ? '' : 's'}
+              </span>
+            </div>
 
-              {customers.length ? (
-                <div className="space-y-4">
-                  {customers.map((customer) => (
-                    <div
-                      key={customer.id}
-                      className="rounded-2xl border border-slate-800 bg-[#0b1220] p-5 shadow-lg shadow-black/10"
-                    >
-                      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                        <div className="min-w-0 flex-1">
-                          <h3 className="text-2xl font-bold text-white">{customer.full_name || 'Unnamed Customer'}</h3>
-                          <div className="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-300">
-                            <span>{customer.phone || 'No phone'}</span>
-                            <span>{customer.email || 'No email'}</span>
-                          </div>
-                          {customer.notes && (
-                            <p className="mt-4 max-w-3xl text-sm text-slate-400">{customer.notes}</p>
-                          )}
-                        </div>
-
-                        <div className="flex flex-wrap gap-2">
-                          <Link
-                            href={`/customers/${customer.id}`}
-                            className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
-                          >
-                            Open
-                          </Link>
-                          {customer.phone && (
-                            <a
-                              href={`tel:${customer.phone}`}
-                              className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-100 hover:bg-slate-900"
-                            >
-                              Call
-                            </a>
-                          )}
-                          {customer.email && (
-                            <a
-                              href={`mailto:${customer.email}`}
-                              className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-100 hover:bg-slate-900"
-                            >
-                              Email
-                            </a>
-                          )}
-                        </div>
+            <div className="space-y-6">
+              {customerCards.map((customer) => (
+                <div
+                  key={customer.id}
+                  className="rounded-[24px] border border-slate-800 bg-[#0b1220] p-5 shadow-2xl shadow-black/20"
+                >
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <h3 className="text-3xl font-bold text-white">
+                          {customer.full_name || 'Unnamed Customer'}
+                        </h3>
+                        {customer.directMatch && (
+                          <span className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-red-300">
+                            Match
+                          </span>
+                        )}
                       </div>
+
+                      <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-300">
+                        <span>{customer.phone || 'No phone'}</span>
+                        <span>{customer.email || 'No email'}</span>
+                      </div>
+
+                      {customer.notes && (
+                        <p className="mt-4 max-w-4xl text-sm text-slate-400">{customer.notes}</p>
+                      )}
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-slate-800 bg-[#0b1220] p-5 text-slate-400">
-                  No customer results for “{query}”.
-                </div>
-              )}
-            </section>
 
-            <section>
-              <div className="mb-4 flex items-center justify-between gap-4">
-                <h2 className="text-2xl font-semibold">Repairs</h2>
-                <span className="rounded-full bg-slate-800 px-3 py-1 text-sm text-slate-300">
-                  {jobs.length} result{jobs.length === 1 ? '' : 's'}
-                </span>
-              </div>
-
-              {jobs.length ? (
-                <div className="space-y-4">
-                  {jobs.map((job) => {
-                    const customer = customerMap.get(job.customer_id)
-                    const daysInShop = getDaysInShop(job)
-                    return (
-                      <div
-                        key={job.id}
-                        className="rounded-[22px] border border-slate-800 bg-[#09111f] p-5 shadow-lg shadow-black/20"
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        href={`/customers/${customer.id}`}
+                        className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
                       >
-                        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-start justify-between gap-4">
-                              <div>
-                                <h3 className="text-3xl font-bold text-white">
-                                  {customer?.full_name || 'Unknown Customer'}
-                                </h3>
-                                <div className="mt-2 text-base text-red-400">
-                                  {customer?.phone || 'No phone'}
+                        Open
+                      </Link>
+                      {customer.phone && (
+                        <a
+                          href={`tel:${customer.phone}`}
+                          className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-100 hover:bg-slate-900"
+                        >
+                          Call
+                        </a>
+                      )}
+                      {customer.email && (
+                        <a
+                          href={`mailto:${customer.email}`}
+                          className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-100 hover:bg-slate-900"
+                        >
+                          Email
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-6 border-t border-slate-800 pt-5">
+                    <div className="mb-4 flex items-center justify-between gap-4">
+                      <h4 className="text-lg font-semibold text-white">Repairs</h4>
+                      <span className="rounded-full bg-slate-900 px-3 py-1 text-sm text-slate-300">
+                        {customer.jobs.length} job{customer.jobs.length === 1 ? '' : 's'}
+                      </span>
+                    </div>
+
+                    {customer.jobs.length ? (
+                      <div className="space-y-3">
+                        {customer.jobs.map((job: any) => {
+                          const daysInShop = getDaysInShop(job)
+
+                          return (
+                            <div
+                              key={job.id}
+                              className="rounded-2xl border border-slate-800 bg-[#09111f] px-4 py-4"
+                            >
+                              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <h5 className="text-xl font-semibold text-white">
+                                      {job.title || 'Untitled Repair'}
+                                    </h5>
+
+                                    {job.status && (
+                                      <span className="rounded-full border border-amber-500/20 bg-amber-500/15 px-3 py-1 text-xs font-medium text-amber-300">
+                                        {job.status}
+                                      </span>
+                                    )}
+
+                                    <span
+                                      className={`rounded-full px-3 py-1 text-xs font-medium ${getDaysBadgeClass(
+                                        daysInShop
+                                      )}`}
+                                    >
+                                      {daysInShop === null
+                                        ? 'No date'
+                                        : `${daysInShop} day${daysInShop === 1 ? '' : 's'} in shop`}
+                                    </span>
+                                  </div>
+
+                                  <div className="mt-3 grid gap-x-6 gap-y-2 text-sm text-slate-400 md:grid-cols-2 xl:grid-cols-4">
+                                    <div>
+                                      <span className="text-slate-500">Date In:</span>{' '}
+                                      {formatDate(job.date_in || job.created_at)}
+                                    </div>
+                                    <div>
+                                      <span className="text-slate-500">Estimate:</span>{' '}
+                                      {formatCurrency(job.estimate)}
+                                    </div>
+                                    <div>
+                                      <span className="text-slate-500">Actual:</span>{' '}
+                                      {formatCurrency(job.final_price)}
+                                    </div>
+                                    <div>
+                                      <span className="text-slate-500">Phone:</span>{' '}
+                                      {customer.phone || '—'}
+                                    </div>
+                                  </div>
+
+                                  {job.description && (
+                                    <p className="mt-3 text-sm text-slate-400">{job.description}</p>
+                                  )}
+                                </div>
+
+                                <div className="flex flex-wrap gap-2 xl:justify-end">
+                                  <Link
+                                    href={`/jobs/${job.id}`}
+                                    className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                                  >
+                                    Open
+                                  </Link>
+                                  <Link
+                                    href={`/jobs/${job.id}/photos`}
+                                    className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-100 hover:bg-slate-900"
+                                  >
+                                    Photos
+                                  </Link>
+                                  {customer.phone && (
+                                    <a
+                                      href={`tel:${customer.phone}`}
+                                      className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-100 hover:bg-slate-900"
+                                    >
+                                      Call
+                                    </a>
+                                  )}
                                 </div>
                               </div>
-
-                              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                                {job.status && (
-                                  <span className="rounded-full bg-amber-500/15 px-3 py-1 text-sm font-medium text-amber-300 border border-amber-500/20">
-                                    {job.status}
-                                  </span>
-                                )}
-                                <span
-                                  className={`rounded-full px-3 py-1 text-sm font-medium ${getDaysBadgeClass(
-                                    daysInShop
-                                  )}`}
-                                >
-                                  {daysInShop === null ? 'No date' : `${daysInShop} day${daysInShop === 1 ? '' : 's'} in shop`}
-                                </span>
-                              </div>
                             </div>
-
-                            <div className="mt-6 grid gap-5 md:grid-cols-2">
-                              <div>
-                                <p className="text-sm uppercase tracking-wide text-slate-500">Drone</p>
-                                <p className="mt-1 text-2xl font-semibold text-white">
-                                  {job.title || 'Untitled Repair'}
-                                </p>
-                              </div>
-
-                              <div>
-                                <p className="text-sm uppercase tracking-wide text-slate-500">Date In</p>
-                                <p className="mt-1 text-2xl font-semibold text-white">
-                                  {formatDate(job.date_in || job.created_at)}
-                                </p>
-                              </div>
-
-                              <div>
-                                <p className="text-sm uppercase tracking-wide text-slate-500">Estimate</p>
-                                <p className="mt-1 text-2xl font-semibold text-white">
-                                  {formatCurrency(job.estimate)}
-                                </p>
-                              </div>
-
-                              <div>
-                                <p className="text-sm uppercase tracking-wide text-slate-500">Actual Cost</p>
-                                <p className="mt-1 text-2xl font-semibold text-white">
-                                  {formatCurrency(job.final_price)}
-                                </p>
-                              </div>
-                            </div>
-
-                            {job.description && (
-                              <div className="mt-5 border-t border-slate-800 pt-4 text-lg text-slate-400">
-                                {job.description}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex shrink-0 flex-wrap gap-2 lg:w-[220px] lg:justify-end">
-                            <Link
-                              href={`/jobs/${job.id}`}
-                              className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
-                            >
-                              Open
-                            </Link>
-                            <Link
-                              href={`/jobs/${job.id}`}
-                              className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-100 hover:bg-slate-900"
-                            >
-                              Photos
-                            </Link>
-                            {customer?.phone && (
-                              <a
-                                href={`tel:${customer.phone}`}
-                                className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-100 hover:bg-slate-900"
-                              >
-                                Call
-                              </a>
-                            )}
-                          </div>
-                        </div>
+                          )
+                        })}
                       </div>
-                    )
-                  })}
+                    ) : (
+                      <div className="rounded-2xl border border-slate-800 bg-[#09111f] p-4 text-slate-400">
+                        No repairs found for this customer.
+                      </div>
+                    )}
+                  </div>
                 </div>
-              ) : (
-                <div className="rounded-2xl border border-slate-800 bg-[#0b1220] p-5 text-slate-400">
-                  No repair results for “{query}”.
-                </div>
-              )}
-            </section>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-800 bg-[#0b1220] p-5 text-slate-400">
+            No results for “{query}”.
           </div>
         )}
       </div>
