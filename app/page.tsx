@@ -2,29 +2,42 @@ import Link from 'next/link'
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-slate-50 px-6 py-10">
-      <div className="mx-auto max-w-5xl">
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-          <p className="text-sm font-medium uppercase tracking-wide text-sky-700">
-            Cardinal Drones
-          </p>
-          <h1 className="mt-2 text-4xl font-bold tracking-tight text-slate-900">
-            Drone CRM
-          </h1>
-          <p className="mt-3 max-w-2xl text-slate-600">
-            Track customers, repair jobs, notes, and photo evidence from your
-            phone or computer.
+    <main className="min-h-screen px-6 py-10">
+      <div className="mx-auto max-w-5xl space-y-6">
+
+        <div className="rounded-2xl border bg-white p-8 shadow-sm">
+          <h1 className="text-4xl font-bold">Cardinal Drones CRM</h1>
+          <p className="mt-3 text-slate-600">
+            Manage customers, repairs, and job photos quickly from any device.
           </p>
 
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-6 flex gap-3">
             <Link
               href="/customers"
-              className="inline-flex items-center rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700"
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white hover:bg-sky-700"
             >
               Open Customers
             </Link>
           </div>
         </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-xl border bg-white p-5">
+            <h3 className="font-semibold">Customers</h3>
+            <p className="text-sm text-slate-600 mt-1">Store contact info and notes</p>
+          </div>
+
+          <div className="rounded-xl border bg-white p-5">
+            <h3 className="font-semibold">Jobs</h3>
+            <p className="text-sm text-slate-600 mt-1">Track repairs and pricing</p>
+          </div>
+
+          <div className="rounded-xl border bg-white p-5">
+            <h3 className="font-semibold">Photos</h3>
+            <p className="text-sm text-slate-600 mt-1">Attach evidence to jobs</p>
+          </div>
+        </div>
+
       </div>
     </main>
   )
