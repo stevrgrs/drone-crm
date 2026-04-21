@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/browser'
 
-export default function UploadImage({ customerId }: { customerId: string }) {
+export default function UploadJobImage({ jobId }: { jobId: string }) {
   const [uploading, setUploading] = useState(false)
 
   async function handleUpload(e: React.FormEvent<HTMLFormElement>) {
@@ -24,7 +24,7 @@ export default function UploadImage({ customerId }: { customerId: string }) {
       const supabase = createClient()
 
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-      const filePath = `${customerId}/${Date.now()}_${safeName}`
+      const filePath = `jobs/${jobId}/${Date.now()}_${safeName}`
 
       const { error: uploadError } = await supabase.storage
         .from('customer-images')
@@ -43,10 +43,10 @@ export default function UploadImage({ customerId }: { customerId: string }) {
         .getPublicUrl(filePath)
 
       const { error: insertError } = await supabase
-        .from('customer_images')
+        .from('job_images')
         .insert([
           {
-            customer_id: customerId,
+            job_id: jobId,
             image_url: data.publicUrl,
           },
         ])
@@ -63,19 +63,30 @@ export default function UploadImage({ customerId }: { customerId: string }) {
   }
 
   return (
-    <form onSubmit={handleUpload}>
-      <label htmlFor="customer-image-file">Choose Image</label>
-      <br />
-      <input
-        id="customer-image-file"
-        type="file"
-        name="file"
-        accept="image/*"
-        required
-      />
-      <br />
-      <button type="submit" disabled={uploading} style={{ marginTop: 8 }}>
-        {uploading ? 'Uploading...' : 'Upload'}
+    <form onSubmit={handleUpload} className="space-y-3">
+      <div>
+        <label
+          htmlFor="job-image-file"
+          className="mb-2 block text-sm font-medium text-slate-700"
+        >
+          Choose image
+        </label>
+        <input
+          id="job-image-file"
+          type="file"
+          name="file"
+          accept="image/*"
+          required
+          className="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 file:mr-4 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200"
+        />
+      </div>
+
+      <button
+        type="submit"
+        disabled={uploading}
+        className="inline-flex items-center rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {uploading ? 'Uploading...' : 'Upload Job Image'}
       </button>
     </form>
   )

@@ -1,165 +1,121 @@
 import Link from 'next/link'
-import { revalidatePath } from 'next/cache'
+import UploadJobImage from './UploadJobImage'
 import { createClient } from '@/lib/supabase/server'
-import UploadImage from './UploadImage'
 
-export default async function CustomerDetailPage({
+export default async function JobDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
 
-  async function updateNotes(formData: FormData) {
-    'use server'
-
-    const supabase = await createClient()
-    const notes = String(formData.get('notes') ?? '')
-
-    await supabase
-      .from('customers')
-      .update({ notes })
-      .eq('id', id)
-
-    revalidatePath(`/customers/${id}`)
-  }
-
-  async function addJob(formData: FormData) {
-    'use server'
-
-    const supabase = await createClient()
-
-    const title = String(formData.get('title') ?? '').trim()
-    const description = String(formData.get('description') ?? '').trim()
-
-    if (!title) return
-
-    await supabase.from('service_jobs').insert([
-      {
-        customer_id: id,
-        title,
-        description,
-      },
-    ])
-
-    revalidatePath(`/customers/${id}`)
-  }
-
   const supabase = await createClient()
 
-  const { data: customer } = await supabase
-    .from('customers')
+  const { data: job } = await supabase
+    .from('service_jobs')
     .select('*')
     .eq('id', id)
     .single()
 
-  const { data: jobs } = await supabase
-    .from('service_jobs')
-    .select('*')
-    .eq('customer_id', id)
-    .order('created_at', { ascending: false })
-
   const { data: images } = await supabase
-    .from('customer_images')
+    .from('job_images')
     .select('*')
-    .eq('customer_id', id)
+    .eq('job_id', id)
     .order('created_at', { ascending: false })
 
-  if (!customer) {
-    return <main style={{ padding: 20 }}>Customer not found.</main>
+  if (!job) {
+    return (
+      <main className="min-h-screen bg-slate-50 px-6 py-8">
+        <div className="mx-auto max-w-4xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+          Job not found.
+        </div>
+      </main>
+    )
   }
 
   return (
-    <main style={{ padding: 20 }}>
-      <Link href="/customers">← Back to Customers</Link>
-
-      <h1 style={{ marginTop: 20 }}>{customer.full_name}</h1>
-
-      <p><strong>Phone:</strong> {customer.phone}</p>
-      <p><strong>Email:</strong> {customer.email}</p>
-
-      <h2>Notes</h2>
-
-      <form action={updateNotes}>
-        <label htmlFor="notes">Customer Notes</label>
-        <br />
-        <textarea
-          id="notes"
-          name="notes"
-          defaultValue={customer.notes || ''}
-          rows={4}
-          style={{ width: '100%' }}
-        />
-        <br />
-        <button type="submit" style={{ marginTop: 10 }}>
-          Save Notes
-        </button>
-      </form>
-
-      <h2 style={{ marginTop: 30 }}>Add Service Job</h2>
-
-      <form action={addJob} style={{ marginBottom: 20 }}>
-        <label htmlFor="title">Job Title</label>
-        <br />
-        <input id="title" name="title" required />
-
-        <br />
-        <label htmlFor="description" style={{ display: 'inline-block', marginTop: 8 }}>
-          Description
-        </label>
-        <br />
-        <input id="description" name="description" style={{ width: 300 }} />
-
-        <br />
-        <button type="submit" style={{ marginTop: 8 }}>
-          Add Job
-        </button>
-      </form>
-
-      <h2>Service Jobs</h2>
-
-      {jobs?.length ? (
-        jobs.map((job: any) => (
-          <div
-            key={job.id}
-            style={{
-              border: '1px solid #ccc',
-              padding: 12,
-              marginBottom: 10,
-            }}
+    <main className="min-h-screen bg-slate-50 px-6 py-8">
+      <div className="mx-auto max-w-5xl space-y-6">
+        <div>
+          <Link
+            href={`/customers/${job.customer_id}`}
+            className="text-sm font-medium text-sky-700 hover:underline"
           >
-            <strong>
-              <Link href={`/jobs/${job.id}`}>{job.title}</Link>
-            </strong>
-            <br />
-            {job.description}
-            <br />
-            Status: {job.status}
+            ← Back to Customer
+          </Link>
+
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
+            {job.title}
+          </h1>
+
+          <div className="mt-3 flex flex-wrap gap-3">
+            <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800">
+              {job.status}
+            </span>
           </div>
-        ))
-      ) : (
-        <p>No jobs yet.</p>
-      )}
+        </div>
 
-      <h2 style={{ marginTop: 30 }}>Upload Image</h2>
-      <UploadImage customerId={id} />
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-slate-900">Job Details</h2>
 
-      <h2 style={{ marginTop: 30 }}>Images</h2>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div>
+              <p className="text-sm font-medium text-slate-500">Description</p>
+              <p className="mt-1 text-slate-800">{job.description || '—'}</p>
+            </div>
 
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        {images?.map((img: any) => (
-          <img
-            key={img.id}
-            src={img.image_url}
-            alt="Customer upload"
-            style={{
-              width: 150,
-              height: 150,
-              objectFit: 'cover',
-              border: '1px solid #ccc',
-            }}
-          />
-        ))}
+            <div>
+              <p className="text-sm font-medium text-slate-500">Estimate</p>
+              <p className="mt-1 text-slate-800">{job.estimate ?? '—'}</p>
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-slate-500">Final Price</p>
+              <p className="mt-1 text-slate-800">{job.final_price ?? '—'}</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-slate-900">Upload Job Image</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Add photos specifically tied to this repair job.
+          </p>
+          <div className="mt-4">
+            <UploadJobImage jobId={id} />
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-slate-900">Job Images</h2>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+              {images?.length || 0} total
+            </span>
+          </div>
+
+          {images?.length ? (
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+              {images.map((img: any) => (
+                <a
+                  key={img.id}
+                  href={img.image_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
+                >
+                  <img
+                    src={img.image_url}
+                    alt="Job upload"
+                    className="h-44 w-full object-cover transition group-hover:scale-[1.02]"
+                  />
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p className="text-slate-500">No job images yet.</p>
+          )}
+        </section>
       </div>
     </main>
   )
