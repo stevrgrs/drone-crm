@@ -10,66 +10,75 @@ export default async function CustomersPage() {
     .order('created_at', { ascending: false })
 
   return (
-    <main className="min-h-screen bg-slate-50 px-6 py-8">
+    <main className="min-h-screen px-6 py-8">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-6 flex items-center justify-between gap-4">
+        <div className="mb-6 flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium uppercase tracking-wide text-sky-700">
-              CRM
+            <h1 className="text-3xl font-bold">Customers</h1>
+            <p className="text-sm text-slate-500">
+              Manage and view all customer records
             </p>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-              Customers
-            </h1>
           </div>
 
           <Link
             href="/"
-            className="inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+            className="rounded-lg border px-4 py-2 text-sm hover:bg-slate-100"
           >
-            Back Home
+            Back
           </Link>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <table className="min-w-full divide-y divide-slate-200">
+        <div className="rounded-xl border bg-white overflow-hidden">
+          <table className="w-full text-sm">
             <thead className="bg-slate-100">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Name
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Phone
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Email
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Notes
-                </th>
+                <th className="p-3 text-left">Name</th>
+                <th className="p-3 text-left">Phone</th>
+                <th className="p-3 text-left">Email</th>
+                <th className="p-3 text-left">Actions</th>
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-slate-100">
+            <tbody>
               {data?.length ? (
                 data.map((c: any) => (
-                  <tr key={c.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-4">
+                  <tr key={c.id} className="border-t">
+                    <td className="p-3 font-medium">{c.full_name}</td>
+                    <td className="p-3">{c.phone}</td>
+                    <td className="p-3">{c.email}</td>
+
+                    <td className="p-3 flex gap-2">
                       <Link
                         href={`/customers/${c.id}`}
-                        className="font-semibold text-sky-700 hover:text-sky-800 hover:underline"
+                        className="bg-sky-600 text-white px-3 py-1 rounded-md text-xs hover:bg-sky-700"
                       >
-                        {c.full_name}
+                        Open
                       </Link>
+
+                      {c.phone && (
+                        <a
+                          href={`tel:${c.phone}`}
+                          className="border px-3 py-1 rounded-md text-xs hover:bg-slate-100"
+                        >
+                          Call
+                        </a>
+                      )}
+
+                      {c.email && (
+                        <a
+                          href={`mailto:${c.email}`}
+                          className="border px-3 py-1 rounded-md text-xs hover:bg-slate-100"
+                        >
+                          Email
+                        </a>
+                      )}
                     </td>
-                    <td className="px-4 py-4 text-slate-700">{c.phone}</td>
-                    <td className="px-4 py-4 text-slate-700">{c.email}</td>
-                    <td className="px-4 py-4 text-slate-600">{c.notes}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="px-4 py-10 text-center text-slate-500">
-                    No customers yet.
+                  <td colSpan={4} className="p-6 text-center text-slate-500">
+                    No customers yet
                   </td>
                 </tr>
               )}
