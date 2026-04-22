@@ -1,11 +1,13 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/browser'
 
 type JobImage = {
   id: string
   image_url: string
+  details?: string | null
+  caption?: string | null
 }
 
 function getStoragePathFromPublicUrl(url: string) {
@@ -24,9 +26,19 @@ export default function PhotosManager({
 }) {
   const supabase = useMemo(() => createClient(), [])
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState<JobImage | null>(null)
+  const [detailsDraft, setDetailsDraft] = useState('')
+  const [savingDetails, setSavingDetails] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+
+  useEffect(() => {
+    if (!selected) {
+      setDetailsDraft('')
+      return
+    }
+    setDetailsDraft(selected.details || selected.caption || '')
+  }, [selected])
 
   async function handleAddPhotos(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || [])
@@ -94,6 +106,28 @@ export default function PhotosManager({
     }
   }
 
+  async function handleSaveDetails() {
+    if (!selected) return
+
+    setSavingDetails(true)
+    try {
+      const { error } = await supabase
+        .from('job_images')
+        .update({ details: detailsDraft })
+        .eq('id', selected.id)
+
+      if (error) {
+        alert(error.message)
+        return
+      }
+
+      setSelected({ ...selected, details: detailsDraft })
+      window.location.reload()
+    } finally {
+      setSavingDetails(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-800 bg-[#09111f] p-5">
@@ -101,7 +135,7 @@ export default function PhotosManager({
           <div>
             <h2 className="text-xl font-semibold text-white">Photos</h2>
             <p className="mt-2 text-sm text-slate-400">
-              Click any photo to enlarge it.
+              Click any photo to enlarge it. You can add details under the enlarged photo.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -137,7 +171,7 @@ export default function PhotosManager({
               >
                 <button
                   type="button"
-                  onClick={() => setSelected(image.image_url)}
+                  onClick={() => setSelected(image)}
                   className="block w-full"
                 >
                   <img
@@ -149,7 +183,7 @@ export default function PhotosManager({
                 <div className="flex gap-2 p-3">
                   <button
                     type="button"
-                    onClick={() => setSelected(image.image_url)}
+                    onClick={() => setSelected(image)}
                     className="flex-1 rounded-xl border border-slate-600 px-3 py-2 text-sm text-slate-100 hover:bg-slate-900"
                   >
                     View
@@ -174,15 +208,47 @@ export default function PhotosManager({
       </div>
 
       {selected && (
-        <div
-          onClick={() => setSelected(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
-        >
-          <img
-            src={selected}
-            alt="Enlarged repair photo"
-            className="max-h-[90vh] max-w-[95vw] rounded-xl"
-          />
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/90 p-4">
+          <div className="mx-auto flex min-h-full max-w-5xl items-center justify-center py-8">
+            <div className="w-full rounded-2xl border border-slate-800 bg-[#09111f] p-4 shadow-2xl shadow-black/40">
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSelected(null)}
+                  className="rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-900"
+                >
+                  Close
+                </button>
+              </div>
+
+              <img
+                src={selected.image_url}
+                alt="Enlarged repair photo"
+                className="mx-auto mt-2 max-h-[70vh] max-w-full rounded-xl"
+              />
+
+              <div className="mt-4 rounded-2xl border border-slate-800 bg-[#0b1220] p-4">
+                <label className="block text-sm font-medium text-white">Caption / Details</label>
+                <textarea
+                  value={detailsDraft}
+                  onChange={(e) => setDetailsDraft(e.target.value)}
+                  rows={4}
+                  placeholder="Add notes about what this photo shows..."
+                  className="mt-3 w-full rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-red-500"
+                />
+                <div className="mt-3 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleSaveDetails}
+                    disabled={savingDetails}
+                    className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                  >
+                    {savingDetails ? 'Saving...' : 'Save Details'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
