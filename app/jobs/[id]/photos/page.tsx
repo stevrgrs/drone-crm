@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import HistoryNav from '@/app/components/HistoryNav'
 import PhotosManager from './PhotosManager'
 import { createClient } from '@/lib/supabase/server'
 
@@ -24,25 +24,14 @@ export default async function JobPhotosPage({ params }: { params: { id: string }
 
   return (
     <main className="min-h-screen bg-[#050914] px-4 py-8 text-white md:px-8">
-      <div className="mx-auto max-w-5xl">
-        <Link
-          href="/"
-          className="text-sm text-slate-400 hover:text-white"
-        >
-          ← Back to Search
-        </Link>
+      <div className="mx-auto max-w-5xl space-y-6">
+        <HistoryNav />
 
-        <h1 className="mt-6 text-3xl font-bold text-white">
+        <h1 className="text-3xl font-bold text-white">
           {job.title || 'Repair'} Photos
         </h1>
 
-        <p className="mt-2 text-slate-400">
-          Manage photos for this repair. Click any image to view it full size.
-        </p>
-
-        <div className="mt-8">
-          <PhotosManager jobId={id} images={images || []} />
-        </div>
+        <PhotosManager jobId={id} images={images || []} />
       </div>
     </main>
   )
