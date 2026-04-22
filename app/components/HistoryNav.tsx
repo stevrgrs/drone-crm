@@ -14,13 +14,6 @@ export default function HistoryNav() {
       >
         ← Back
       </button>
-      <button
-        type="button"
-        onClick={() => router.forward()}
-        className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:bg-slate-900"
-      >
-        Forward →
-      </button>
     </div>
   )
 }
