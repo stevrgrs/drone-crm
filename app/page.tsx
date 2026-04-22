@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import SearchResultsClient from './SearchResultsClient'
+import AddCustomerButton from './AddCustomerButton'
 
 function escapeLike(value: string) {
   return value.replace(/[%_,]/g, '')
@@ -84,7 +85,7 @@ export default async function Home({
           <h1 className="text-4xl font-bold text-white">Cardinal Drones CRM</h1>
         </div>
 
-        <form method="GET" className="mb-8">
+        <form method="GET" className="mb-4">
           <div className="rounded-2xl border border-slate-800 bg-[#0b1220] p-3">
             <div className="flex gap-3">
               <input
@@ -98,6 +99,8 @@ export default async function Home({
             </div>
           </div>
         </form>
+
+        <AddCustomerButton />
 
         {term && <SearchResultsClient initialCards={customerCards} />}
       </div>
