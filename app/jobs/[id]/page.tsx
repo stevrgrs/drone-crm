@@ -1,15 +1,9 @@
 import Link from 'next/link'
-import UploadJobImage from './UploadJobImage'
-import ImageGallery from './ImageGallery'
+import EditJobForm from './EditJobForm'
 import { createClient } from '@/lib/supabase/server'
 
-export default async function JobDetailPage({
-  params,
-}: {
-  params: { id: string }
-}) {
+export default async function JobDetailPage({ params }: { params: { id: string } }) {
   const id = params.id
-
   const supabase = await createClient()
 
   const { data: job } = await supabase
@@ -18,35 +12,17 @@ export default async function JobDetailPage({
     .eq('id', id)
     .single()
 
-  const { data: images } = await supabase
-    .from('job_images')
-    .select('*')
-    .eq('job_id', id)
-    .order('created_at', { ascending: false })
-
   if (!job) {
     return <main style={{ padding: 20 }}>Job not found.</main>
   }
 
   return (
-    <main style={{ padding: 20 }}>
-      <Link href={`/customers/${job.customer_id}`}>
-        ← Back to Customer
-      </Link>
+    <main className="min-h-screen bg-[#050914] px-4 py-8 text-white">
+      <div className="mx-auto max-w-4xl space-y-6">
+        <Link href="/" className="text-slate-400 hover:text-white">← Back to Search</Link>
 
-      <h1 style={{ marginTop: 20 }}>{job.title}</h1>
-
-      <p><strong>Description:</strong> {job.description}</p>
-      <p><strong>Status:</strong> {job.status}</p>
-      <p><strong>Estimate:</strong> {job.estimate}</p>
-      <p><strong>Final Price:</strong> {job.final_price}</p>
-
-      <h2 style={{ marginTop: 30 }}>Upload Job Image</h2>
-      <UploadJobImage jobId={id} />
-
-      <h2 style={{ marginTop: 30 }}>Job Images</h2>
-
-      <ImageGallery images={images || []} />
+        <EditJobForm job={job} />
+      </div>
     </main>
   )
 }
