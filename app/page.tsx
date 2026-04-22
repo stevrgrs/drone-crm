@@ -80,10 +80,8 @@ export default async function Home({
   return (
     <main className="min-h-screen bg-[#050914] px-4 py-8 text-white md:px-8">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-8 flex items-start justify-between gap-4">
-          <div>
-            <h1 className="mt-2 text-4xl font-bold">Search CRM</h1>
-          </div>
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-white">Cardinal Drones CRM</h1>
         </div>
 
         <form method="GET" className="mb-8">
