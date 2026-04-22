@@ -315,12 +315,6 @@ export default async function Home({
 
                                 <div className="flex flex-wrap gap-2 xl:justify-end">
                                   <Link
-                                    href={`/jobs/${job.id}`}
-                                    className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
-                                  >
-                                    Open
-                                  </Link>
-                                  <Link
                                     href={`/jobs/${job.id}/photos`}
                                     className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-100 hover:bg-slate-900"
                                   >
