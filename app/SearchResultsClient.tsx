@@ -12,7 +12,6 @@ type Job = {
   status?: string | null
   estimate?: number | string | null
   final_price?: number | string | null
-  date_in?: string | null
   created_at?: string | null
 }
 
@@ -37,7 +36,7 @@ function formatCurrency(value: number | string | null | undefined) {
 }
 
 function getDaysInShop(job: Job) {
-  const source = job.date_in || job.created_at || null
+  const source = job.created_at || null
   if (!source) return null
   const start = new Date(source)
   if (Number.isNaN(start.getTime())) return null
@@ -141,7 +140,6 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
   async function addRepair(customerId: string) {
     setBusyCustomerId(customerId)
     try {
-      const today = new Date().toISOString().split('T')[0]
       const { data, error } = await supabase
         .from('service_jobs')
         .insert([
@@ -149,7 +147,6 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
             customer_id: customerId,
             title: 'New Repair',
             status: 'in progress',
-            date_in: today,
             description: '',
           },
         ])
@@ -314,7 +311,6 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
               <div className="space-y-3">
                 {customer.jobs.map((job: Job) => {
                   const daysInShop = getDaysInShop(job)
-                  const dateValue = (job.date_in || '').split('T')[0]
                   return (
                     <div
                       key={job.id}
@@ -351,15 +347,12 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
                             </span>
                           </div>
 
-                          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                             <div>
-                              <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">Date In</div>
-                              <input
-                                type="date"
-                                value={dateValue}
-                                onChange={(e) => updateJob(job.id, { date_in: e.target.value })}
-                                className="w-full rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-sm text-slate-200 outline-none focus:border-red-500"
-                              />
+                              <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">Created</div>
+                              <div className="w-full rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-sm text-slate-200">
+                                {job.created_at ? new Date(job.created_at).toLocaleDateString() : '—'}
+                              </div>
                             </div>
                             <div>
                               <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">Estimate</div>
@@ -379,24 +372,25 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
                                 placeholder="Final price"
                               />
                             </div>
-                            <div>
-                              <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">Actions</div>
-                              <div className="flex gap-2">
-                                <Link
-                                  href={`/jobs/${job.id}/photos`}
+                          </div>
+
+                          <div>
+                            <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">Actions</div>
+                            <div className="flex gap-2">
+                              <Link
+                                href={`/jobs/${job.id}/photos`}
+                                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-100 hover:bg-slate-900"
+                              >
+                                Photos
+                              </Link>
+                              {customer.phone && (
+                                <a
+                                  href={`tel:${customer.phone}`}
                                   className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-100 hover:bg-slate-900"
                                 >
-                                  Photos
-                                </Link>
-                                {customer.phone && (
-                                  <a
-                                    href={`tel:${customer.phone}`}
-                                    className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-100 hover:bg-slate-900"
-                                  >
-                                    Call
-                                  </a>
-                                )}
-                              </div>
+                                  Call
+                                </a>
+                              )}
                             </div>
                           </div>
 
