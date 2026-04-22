@@ -12,6 +12,7 @@ type Job = {
   status?: string | null
   estimate?: number | string | null
   final_price?: number | string | null
+  date_in?: string | null
   created_at?: string | null
 }
 
@@ -36,7 +37,7 @@ function formatCurrency(value: number | string | null | undefined) {
 }
 
 function getDaysInShop(job: Job) {
-  const source = job.created_at || null
+  const source = job.date_in || job.created_at || null
   if (!source) return null
   const start = new Date(source)
   if (Number.isNaN(start.getTime())) return null
@@ -106,6 +107,7 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
   const [cards, setCards] = useState<CustomerCard[]>(initialCards)
   const [busyCustomerId, setBusyCustomerId] = useState<string | null>(null)
   const [busyJobId, setBusyJobId] = useState<string | null>(null)
+  const [savingCustomerId, setSavingCustomerId] = useState<string | null>(null)
 
   async function updateCustomer(id: string, patch: Partial<CustomerCard>) {
     const { error } = await supabase
@@ -137,9 +139,15 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
     )
   }
 
+  async function saveEntry(customerId: string) {
+    setSavingCustomerId(customerId)
+    setTimeout(() => setSavingCustomerId(null), 900)
+  }
+
   async function addRepair(customerId: string) {
     setBusyCustomerId(customerId)
     try {
+      const today = new Date().toISOString().split('T')[0]
       const { data, error } = await supabase
         .from('service_jobs')
         .insert([
@@ -147,6 +155,7 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
             customer_id: customerId,
             title: 'New Repair',
             status: 'in progress',
+            date_in: today,
             description: '',
           },
         ])
@@ -311,6 +320,7 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
               <div className="space-y-3">
                 {customer.jobs.map((job: Job) => {
                   const daysInShop = getDaysInShop(job)
+                  const dateValue = (job.date_in || '').split('T')[0]
                   return (
                     <div
                       key={job.id}
@@ -349,10 +359,13 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
 
                           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                             <div>
-                              <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">Created</div>
-                              <div className="w-full rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-sm text-slate-200">
-                                {job.created_at ? new Date(job.created_at).toLocaleDateString() : '—'}
-                              </div>
+                              <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">Date In</div>
+                              <input
+                                type="date"
+                                value={dateValue}
+                                onChange={(e) => updateJob(job.id, { date_in: e.target.value })}
+                                className="w-full rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-sm text-slate-200 outline-none focus:border-red-500"
+                              />
                             </div>
                             <div>
                               <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">Estimate</div>
@@ -428,14 +441,25 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
             )}
           </div>
 
-          <div className="mt-5 flex justify-end">
+          <div className="mt-5 flex items-center justify-between">
             <button
               type="button"
               onClick={() => deleteCustomer(customer.id)}
               disabled={busyCustomerId === customer.id}
-              className="rounded-xl bg-red-800 px-4 py-2 text-sm font-semibold text-white hover:bg-red-900 disabled:opacity-60"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-600 text-lg text-white hover:bg-slate-900 disabled:opacity-60"
+              aria-label="Delete Customer"
+              title="Delete Customer"
             >
-              {busyCustomerId === customer.id ? 'Deleting...' : 'Delete Customer'}
+              🗑️
+            </button>
+
+            <button
+              type="button"
+              onClick={() => saveEntry(customer.id)}
+              disabled={savingCustomerId === customer.id}
+              className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+            >
+              {savingCustomerId === customer.id ? 'Saved' : 'Save Entry'}
             </button>
           </div>
         </div>
