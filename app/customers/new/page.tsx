@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/browser'
 import { useRouter } from 'next/navigation'
@@ -28,49 +28,6 @@ function makeEmptyJob(): NewJob {
   }
 }
 
-function MobileFriendlyDateField({
-  value,
-  onChange,
-}: {
-  value: string
-  onChange: (value: string) => void
-}) {
-  const inputRef = useRef<HTMLInputElement | null>(null)
-
-  function openPicker() {
-    const input = inputRef.current
-    if (!input) return
-    if (typeof (input as HTMLInputElement & { showPicker?: () => void }).showPicker === 'function') {
-      ;(input as HTMLInputElement & { showPicker?: () => void }).showPicker?.()
-    } else {
-      input.focus()
-      input.click()
-    }
-  }
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={openPicker}
-        className="flex h-14 w-full items-center justify-between rounded-xl border border-slate-700 bg-[#030712] px-4 text-left text-base text-white outline-none focus:border-red-500"
-      >
-        <span>{value || 'Select date'}</span>
-        <span className="text-slate-400">📅</span>
-      </button>
-      <input
-        ref={inputRef}
-        type="date"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
-        tabIndex={-1}
-        aria-hidden="true"
-      />
-    </div>
-  )
-}
-
 export default function NewCustomerPage() {
   const supabase = createClient()
   const router = useRouter()
@@ -87,9 +44,7 @@ export default function NewCustomerPage() {
   }
 
   function updateJob(index: number, patch: Partial<NewJob>) {
-    setJobs((current) =>
-      current.map((job, i) => (i === index ? { ...job, ...patch } : job))
-    )
+    setJobs((current) => current.map((job, i) => (i === index ? { ...job, ...patch } : job)))
   }
 
   function removeJob(index: number) {
@@ -106,14 +61,7 @@ export default function NewCustomerPage() {
     try {
       const { data: createdCustomer, error: customerError } = await supabase
         .from('customers')
-        .insert([
-          {
-            full_name: fullName.trim(),
-            phone: phone.trim(),
-            email: email.trim(),
-            notes: notes.trim(),
-          },
-        ])
+        .insert([{ full_name: fullName.trim(), phone: phone.trim(), email: email.trim(), notes: notes.trim() }])
         .select('*')
         .single()
 
@@ -128,17 +76,14 @@ export default function NewCustomerPage() {
           customer_id: createdCustomer.id,
           title: job.title.trim() || 'New Repair',
           status: job.status,
-          date_in: job.date_in || new Date().toISOString().split('T')[0],
+          date_in: job.date_in,
           description: job.description.trim(),
-          estimate: job.estimate.trim() || null,
-          final_price: job.final_price.trim() || null,
+          estimate: job.estimate || null,
+          final_price: job.final_price || null,
         }))
 
       if (jobsToCreate.length) {
-        const { error: jobsError } = await supabase
-          .from('service_jobs')
-          .insert(jobsToCreate)
-
+        const { error: jobsError } = await supabase.from('service_jobs').insert(jobsToCreate)
         if (jobsError) {
           alert(jobsError.message)
           return
@@ -158,151 +103,40 @@ export default function NewCustomerPage() {
 
         <div className="rounded-2xl border border-slate-800 bg-[#0b1220] p-6">
           <h1 className="text-3xl font-bold text-white">Add Customer</h1>
-          <p className="mt-2 text-slate-400">Enter only the details for the new customer.</p>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <input
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Full Name"
-              className="rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white outline-none focus:border-red-500"
-            />
-
-            <input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="Phone"
-              className="rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white outline-none focus:border-red-500"
-            />
-
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email"
-              className="md:col-span-2 rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white outline-none focus:border-red-500"
-            />
-
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Notes"
-              rows={5}
-              className="md:col-span-2 rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white outline-none focus:border-red-500"
-            />
+            <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full Name" className="rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white" />
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" className="rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white" />
+            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="md:col-span-2 rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white" />
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes" rows={5} className="md:col-span-2 rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white" />
           </div>
 
           <div className="mt-8 border-t border-slate-800 pt-6">
-            <div className="mb-4 flex items-center justify-between gap-4">
+            <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-semibold text-white">Repairs</h2>
-              <span className="rounded-full bg-slate-800 px-3 py-1 text-sm text-slate-300">
-                {jobs.length} job{jobs.length === 1 ? '' : 's'}
-              </span>
+              <span className="text-sm text-slate-400">{jobs.length} jobs</span>
             </div>
 
-            {jobs.length ? (
-              <div className="space-y-4">
-                {jobs.map((job, index) => (
-                  <div
-                    key={index}
-                    className="rounded-2xl border border-slate-800 bg-[#09111f] p-4"
-                  >
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <input
-                        value={job.title}
-                        onChange={(e) => updateJob(index, { title: e.target.value })}
-                        placeholder="Drone / Repair Title"
-                        className="rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white outline-none focus:border-red-500"
-                      />
+            {jobs.map((job, index) => (
+              <div key={index} className="mb-4 rounded-xl border border-slate-700 p-4">
+                <input value={job.title} onChange={(e) => updateJob(index, { title: e.target.value })} placeholder="Repair" className="mb-2 w-full rounded-xl bg-[#030712] px-3 py-2" />
 
-                      <select
-                        value={job.status}
-                        onChange={(e) => updateJob(index, { status: e.target.value })}
-                        className="rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white outline-none focus:border-red-500"
-                      >
-                        {STATUS_OPTIONS.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
+                <input
+                  type="date"
+                  value={job.date_in}
+                  onChange={(e) => updateJob(index, { date_in: e.target.value })}
+                  className="mb-2 w-full rounded-xl bg-[#030712] px-3 py-2 text-white"
+                  style={{ colorScheme: 'dark' }}
+                />
 
-                      <MobileFriendlyDateField
-                        value={job.date_in}
-                        onChange={(value) => updateJob(index, { date_in: value })}
-                      />
-
-                      <input
-                        value={job.estimate}
-                        onChange={(e) => updateJob(index, { estimate: e.target.value })}
-                        placeholder="Estimate"
-                        className="rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white outline-none focus:border-red-500"
-                      />
-
-                      <input
-                        value={job.final_price}
-                        onChange={(e) => updateJob(index, { final_price: e.target.value })}
-                        placeholder="Final Price"
-                        className="rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white outline-none focus:border-red-500"
-                      />
-
-                      <div className="md:col-span-2">
-                        <textarea
-                          value={job.description}
-                          onChange={(e) => updateJob(index, { description: e.target.value })}
-                          placeholder="Repair Description"
-                          rows={4}
-                          className="w-full rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white outline-none focus:border-red-500"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                      <Link
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault()
-                          alert('Save the customer first, then you can add and view photos for this repair.')
-                        }}
-                        className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-100 hover:bg-slate-900"
-                      >
-                        Photos
-                      </Link>
-
-                      <button
-                        type="button"
-                        onClick={() => removeJob(index)}
-                        className="rounded-xl bg-red-800 px-4 py-2 text-sm font-semibold text-white hover:bg-red-900"
-                      >
-                        Remove Job
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                <button onClick={() => removeJob(index)} className="text-red-400">Remove</button>
               </div>
-            ) : (
-              <div className="rounded-2xl border border-slate-800 bg-[#09111f] p-4 text-slate-400">
-                No repairs added yet.
-              </div>
-            )}
+            ))}
           </div>
 
-          <div className="mt-6 flex justify-between gap-3">
-            <button
-              type="button"
-              onClick={addJob}
-              className="rounded-xl border border-slate-600 px-5 py-3 font-semibold text-white hover:bg-slate-900"
-            >
-              + Add Job
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving}
-              className="rounded-xl bg-red-600 px-5 py-3 font-semibold text-white hover:bg-red-700 disabled:opacity-60"
-            >
-              {saving ? 'Saving...' : 'Save Customer'}
-            </button>
+          <div className="mt-6 flex justify-between">
+            <button onClick={addJob} className="rounded-xl border px-4 py-2">+ Add Job</button>
+            <button onClick={handleSave} className="rounded-xl bg-red-600 px-4 py-2">Save Customer</button>
           </div>
         </div>
       </div>
