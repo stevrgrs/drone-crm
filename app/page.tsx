@@ -85,33 +85,33 @@ export default async function Home({
         </div>
 
         <form method="GET" className="mb-4">
-          <div className="rounded-2xl border border-slate-800 bg-[#0b1220] p-3">
-            <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="rounded-2xl border border-slate-800 bg-[#0b1220] p-4">
+            <div className="flex flex-col gap-4">
               <input
                 type="text"
                 name="q"
                 defaultValue={query}
                 placeholder="Search..."
-                className="h-14 flex-1 rounded-xl bg-[#030712] px-5"
+                className="h-16 w-full rounded-xl bg-[#030712] px-5 text-lg text-white placeholder:text-slate-500"
               />
-              <button type="submit" className="h-14 rounded-xl bg-red-600 px-6 text-white">
+              <button type="submit" className="h-16 w-full rounded-xl bg-red-600 px-6 text-lg font-semibold text-white">
                 Search
               </button>
             </div>
           </div>
         </form>
 
-        <div className="mb-8 flex flex-col gap-3 sm:flex-row">
+        <div className="mb-8 flex flex-col gap-3">
           <Link
             href="/customers/new"
-            className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-600 bg-[#0b1220] px-6 py-4 text-white hover:bg-slate-900 sm:w-auto"
+            className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-600 bg-[#0b1220] px-6 py-5 text-lg text-white hover:bg-slate-900"
           >
             + Add Customer
           </Link>
 
           <a
             href="/api/export-backup"
-            className="inline-flex w-full items-center justify-center rounded-2xl bg-green-600 px-6 py-4 text-white hover:bg-green-700 sm:w-auto"
+            className="inline-flex w-full items-center justify-center rounded-2xl bg-green-600 px-6 py-5 text-lg text-white hover:bg-green-700"
           >
             Export Backup
           </a>
