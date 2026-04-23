@@ -65,7 +65,6 @@ export default function NewCustomerPage() {
         .insert([
           {
             full_name: fullName.trim(),
-            name: fullName.trim(),
             phone: phone.trim(),
             email: email.trim(),
             notes: notes.trim(),
