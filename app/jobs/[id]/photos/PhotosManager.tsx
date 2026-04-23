@@ -25,7 +25,8 @@ export default function PhotosManager({
   images: JobImage[]
 }) {
   const supabase = useMemo(() => createClient(), [])
-  const inputRef = useRef<HTMLInputElement | null>(null)
+  const cameraInputRef = useRef<HTMLInputElement | null>(null)
+  const libraryInputRef = useRef<HTMLInputElement | null>(null)
   const [selected, setSelected] = useState<JobImage | null>(null)
   const [detailsDraft, setDetailsDraft] = useState('')
   const [savingDetails, setSavingDetails] = useState(false)
@@ -79,7 +80,8 @@ export default function PhotosManager({
       window.location.reload()
     } finally {
       setUploading(false)
-      if (inputRef.current) inputRef.current.value = ''
+      if (cameraInputRef.current) cameraInputRef.current.value = ''
+      if (libraryInputRef.current) libraryInputRef.current.value = ''
     }
   }
 
@@ -144,18 +146,37 @@ export default function PhotosManager({
             </span>
             <button
               type="button"
-              onClick={() => inputRef.current?.click()}
+              onClick={() => cameraInputRef.current?.click()}
               disabled={uploading}
-              className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-red-600 text-lg text-white hover:bg-red-700 disabled:opacity-60"
+              aria-label="Take photo"
+              title="Take photo"
             >
-              {uploading ? 'Adding...' : 'Add Photos'}
+              📷
+            </button>
+            <button
+              type="button"
+              onClick={() => libraryInputRef.current?.click()}
+              disabled={uploading}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-600 text-lg text-white hover:bg-slate-900 disabled:opacity-60"
+              aria-label="Choose photo"
+              title="Choose photo"
+            >
+              ⋯
             </button>
             <input
-              ref={inputRef}
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleAddPhotos}
+              className="hidden"
+            />
+            <input
+              ref={libraryInputRef}
               type="file"
               accept="image/*"
               multiple
-              capture="environment"
               onChange={handleAddPhotos}
               className="hidden"
             />
