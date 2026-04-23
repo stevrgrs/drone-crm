@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/browser'
 
 type Job = {
@@ -99,6 +99,55 @@ function TextAreaField({
       rows={3}
       className={className}
     />
+  )
+}
+
+function MobileFriendlyDateField({
+  value,
+  onSave,
+}: {
+  value: string
+  onSave: (value: string) => Promise<void>
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const [currentValue, setCurrentValue] = useState(value)
+
+  function openPicker() {
+    const input = inputRef.current
+    if (!input) return
+    if (typeof (input as HTMLInputElement & { showPicker?: () => void }).showPicker === 'function') {
+      ;(input as HTMLInputElement & { showPicker?: () => void }).showPicker?.()
+    } else {
+      input.focus()
+      input.click()
+    }
+  }
+
+  async function handleChange(next: string) {
+    setCurrentValue(next)
+    await onSave(next)
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={openPicker}
+        className="flex h-14 w-full items-center justify-between rounded-xl border border-slate-700 bg-[#030712] px-4 text-left text-base text-white outline-none focus:border-red-500"
+      >
+        <span>{currentValue || 'Select date'}</span>
+        <span className="text-slate-400">📅</span>
+      </button>
+      <input
+        ref={inputRef}
+        type="date"
+        value={currentValue}
+        onChange={(e) => void handleChange(e.target.value)}
+        className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+    </div>
   )
 }
 
@@ -360,11 +409,9 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
                           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                             <div>
                               <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">Date In</div>
-                              <input
-                                type="date"
+                              <MobileFriendlyDateField
                                 value={dateValue}
-                                onChange={(e) => updateJob(job.id, { date_in: e.target.value })}
-                                className="w-full rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-sm text-slate-200 outline-none focus:border-red-500"
+                                onSave={(next) => updateJob(job.id, { date_in: next })}
                               />
                             </div>
                             <div>
