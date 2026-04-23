@@ -19,7 +19,6 @@ type Job = {
 type CustomerCard = {
   id: string
   full_name?: string | null
-  name?: string | null
   phone?: string | null
   email?: string | null
   notes?: string | null
@@ -161,7 +160,7 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
   async function updateCustomer(id: string, patch: Partial<CustomerCard>) {
     const { error } = await supabase
       .from('customers')
-      .update({ ...patch, name: patch.full_name ?? patch.name })
+      .update(patch)
       .eq('id', id)
     if (error) {
       alert(error.message)
@@ -169,7 +168,7 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
     }
     setCards((current: CustomerCard[]) =>
       current.map((card: CustomerCard) =>
-        card.id === id ? { ...card, ...patch, name: patch.full_name ?? patch.name ?? card.name } : card
+        card.id === id ? { ...card, ...patch } : card
       )
     )
   }
@@ -292,8 +291,8 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
             <div className="min-w-0 flex-1 space-y-3">
               <div className="flex flex-wrap items-center gap-3">
                 <TextField
-                  defaultValue={customer.full_name || customer.name || ''}
-                  onSave={(next) => updateCustomer(customer.id, { full_name: next, name: next })}
+                  defaultValue={customer.full_name || ''}
+                  onSave={(next) => updateCustomer(customer.id, { full_name: next })}
                   className="w-full max-w-xl rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-3xl font-bold text-white outline-none focus:border-red-500"
                   placeholder="Customer name"
                 />
