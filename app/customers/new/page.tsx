@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/browser'
 import { useRouter } from 'next/navigation'
 import HistoryNav from '@/app/components/HistoryNav'
@@ -25,6 +26,49 @@ function makeEmptyJob(): NewJob {
     estimate: '',
     final_price: '',
   }
+}
+
+function MobileFriendlyDateField({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (value: string) => void
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null)
+
+  function openPicker() {
+    const input = inputRef.current
+    if (!input) return
+    if (typeof (input as HTMLInputElement & { showPicker?: () => void }).showPicker === 'function') {
+      ;(input as HTMLInputElement & { showPicker?: () => void }).showPicker?.()
+    } else {
+      input.focus()
+      input.click()
+    }
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={openPicker}
+        className="flex h-14 w-full items-center justify-between rounded-xl border border-slate-700 bg-[#030712] px-4 text-left text-base text-white outline-none focus:border-red-500"
+      >
+        <span>{value || 'Select date'}</span>
+        <span className="text-slate-400">📅</span>
+      </button>
+      <input
+        ref={inputRef}
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+    </div>
+  )
 }
 
 export default function NewCustomerPage() {
@@ -182,11 +226,9 @@ export default function NewCustomerPage() {
                         ))}
                       </select>
 
-                      <input
-                        type="date"
+                      <MobileFriendlyDateField
                         value={job.date_in}
-                        onChange={(e) => updateJob(index, { date_in: e.target.value })}
-                        className="rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white outline-none focus:border-red-500"
+                        onChange={(value) => updateJob(index, { date_in: value })}
                       />
 
                       <input
@@ -214,7 +256,18 @@ export default function NewCustomerPage() {
                       </div>
                     </div>
 
-                    <div className="mt-4 flex justify-end">
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                      <Link
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          alert('Save the customer first, then you can add and view photos for this repair.')
+                        }}
+                        className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-100 hover:bg-slate-900"
+                      >
+                        Photos
+                      </Link>
+
                       <button
                         type="button"
                         onClick={() => removeJob(index)}
