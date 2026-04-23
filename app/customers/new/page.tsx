@@ -121,13 +121,17 @@ export default function NewCustomerPage() {
               <div key={index} className="mb-4 rounded-xl border border-slate-700 p-4">
                 <input value={job.title} onChange={(e) => updateJob(index, { title: e.target.value })} placeholder="Repair" className="mb-2 w-full rounded-xl bg-[#030712] px-3 py-2" />
 
-                <input
-                  type="date"
-                  value={job.date_in}
-                  onChange={(e) => updateJob(index, { date_in: e.target.value })}
-                  className="mb-2 w-full rounded-xl bg-[#030712] px-3 py-2 text-white"
-                  style={{ colorScheme: 'dark' }}
-                />
+                <select value={job.status} onChange={(e) => updateJob(index, { status: e.target.value })} className="mb-2 w-full rounded-xl bg-[#030712] px-3 py-2 text-white">
+                  {STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
+                </select>
+
+                <input type="date" value={job.date_in} onChange={(e) => updateJob(index, { date_in: e.target.value })} className="mb-2 w-full rounded-xl bg-[#030712] px-3 py-2 text-white" style={{ colorScheme: 'dark' }} />
+
+                <input value={job.estimate} onChange={(e) => updateJob(index, { estimate: e.target.value })} placeholder="Estimate" className="mb-2 w-full rounded-xl bg-[#030712] px-3 py-2" />
+
+                <input value={job.final_price} onChange={(e) => updateJob(index, { final_price: e.target.value })} placeholder="Final Price" className="mb-2 w-full rounded-xl bg-[#030712] px-3 py-2" />
+
+                <textarea value={job.description} onChange={(e) => updateJob(index, { description: e.target.value })} placeholder="Description" className="mb-2 w-full rounded-xl bg-[#030712] px-3 py-2" />
 
                 <button onClick={() => removeJob(index)} className="text-red-400">Remove</button>
               </div>
