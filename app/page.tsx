@@ -101,13 +101,20 @@ export default async function Home({
           </div>
         </form>
 
-        <div className="mb-8">
+        <div className="mb-8 flex flex-col gap-3 sm:flex-row">
           <Link
             href="/customers/new"
             className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-600 bg-[#0b1220] px-6 py-4 text-white hover:bg-slate-900 sm:w-auto"
           >
             + Add Customer
           </Link>
+
+          <a
+            href="/api/export-backup"
+            className="inline-flex w-full items-center justify-center rounded-2xl bg-green-600 px-6 py-4 text-white hover:bg-green-700 sm:w-auto"
+          >
+            Export Backup
+          </a>
         </div>
 
         {term && <SearchResultsClient initialCards={customerCards} />}
