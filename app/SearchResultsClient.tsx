@@ -52,6 +52,20 @@ function getDaysBadgeClass(days: number | null) {
   return 'bg-slate-800 text-slate-300 border border-slate-700'
 }
 
+function getStatusBadgeClass(status?: string | null) {
+  switch ((status || '').toLowerCase()) {
+    case 'urgent':
+      return 'bg-red-500/15 text-red-300 border border-red-500/30'
+    case 'completed':
+      return 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+    case 'picked up':
+      return 'bg-slate-700 text-slate-200 border border-slate-600'
+    case 'in progress':
+    default:
+      return 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+  }
+}
+
 function TextField({
   defaultValue,
   onSave,
@@ -264,21 +278,22 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
                     <div key={job.id} className="rounded-2xl border border-slate-800 bg-[#09111f] px-4 py-4">
                       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                         <div className="min-w-0 flex-1 space-y-3">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <TextField
-                              defaultValue={job.title || ''}
-                              onSave={(next) => updateJob(job.id, { title: next })}
-                              className="min-w-[220px] rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-xl font-semibold text-white outline-none focus:border-red-500"
-                              placeholder="Drone / Repair title"
-                            />
-
-                            <select value={job.status || 'in progress'} onChange={(e) => updateJob(job.id, { status: e.target.value })} className="rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-sm text-amber-200 outline-none focus:border-red-500">
-                              {STATUS_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
-                            </select>
-
-                            <span className={`rounded-full px-3 py-1 text-xs font-medium ${getDaysBadgeClass(daysInShop)}`}>
-                              {daysInShop === null ? 'No date' : `${daysInShop} day${daysInShop === 1 ? '' : 's'} in shop`}
-                            </span>
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <TextField
+                                defaultValue={job.title || ''}
+                                onSave={(next) => updateJob(job.id, { title: next })}
+                                className="min-w-[220px] rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-xl font-semibold text-white outline-none focus:border-red-500"
+                                placeholder="Drone / Repair title"
+                              />
+                              {customer.phone && <div className="mt-2 text-sm text-slate-400">{customer.phone}</div>}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`rounded-full px-3 py-1 text-xs font-medium ${getStatusBadgeClass(job.status)}`}>{job.status || 'in progress'}</span>
+                              <span className={`rounded-full px-3 py-1 text-xs font-medium ${getDaysBadgeClass(daysInShop)}`}>
+                                {daysInShop === null ? 'No date' : `${daysInShop}d`}
+                              </span>
+                            </div>
                           </div>
 
                           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -291,6 +306,12 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
                                 className="h-14 w-full rounded-xl border border-slate-700 bg-[#030712] px-4 text-base text-white outline-none focus:border-red-500"
                                 style={{ colorScheme: 'dark' }}
                               />
+                            </div>
+                            <div>
+                              <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">Status</div>
+                              <select value={job.status || 'in progress'} onChange={(e) => updateJob(job.id, { status: e.target.value })} className="h-14 w-full rounded-xl border border-slate-700 bg-[#030712] px-4 text-sm text-amber-200 outline-none focus:border-red-500">
+                                {STATUS_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                              </select>
                             </div>
                             <div>
                               <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">Estimate</div>
