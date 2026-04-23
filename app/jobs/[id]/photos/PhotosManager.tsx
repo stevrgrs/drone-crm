@@ -17,6 +17,15 @@ function getStoragePathFromPublicUrl(url: string) {
   return decodeURIComponent(url.slice(index + marker.length))
 }
 
+function CameraIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6 fill-white">
+      <path d="M9 4c-.6 0-1.1.3-1.4.8L6.7 6H5c-1.1 0-2 .9-2 2v9c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-1.7l-.9-1.2c-.3-.5-.8-.8-1.4-.8H9zm3 4.5a4.5 4.5 0 110 9 4.5 4.5 0 010-9z" />
+      <circle cx="12" cy="13" r="2.5" fill="#dc2626" />
+    </svg>
+  )
+}
+
 export default function PhotosManager({
   jobId,
   images,
@@ -148,11 +157,11 @@ export default function PhotosManager({
               type="button"
               onClick={() => cameraInputRef.current?.click()}
               disabled={uploading}
-              className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-2xl text-white shadow-md hover:bg-red-700 disabled:opacity-60"
+              className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-red-600 shadow-md hover:bg-red-700 disabled:opacity-60"
               aria-label="Take photo"
               title="Take photo"
             >
-              📷
+              <CameraIcon />
             </button>
             <button
               type="button"
