@@ -148,7 +148,7 @@ export default function PhotosManager({
               type="button"
               onClick={() => cameraInputRef.current?.click()}
               disabled={uploading}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-red-600 text-lg text-white hover:bg-red-700 disabled:opacity-60"
+              className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-2xl text-white shadow-md hover:bg-red-700 disabled:opacity-60"
               aria-label="Take photo"
               title="Take photo"
             >
