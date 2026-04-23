@@ -102,18 +102,12 @@ export default async function Home({
         </form>
 
         <div className="mb-8 flex flex-col gap-3 sm:flex-row">
-          <button
-            onClick={async () => {
-              const res = await fetch('/api/customers/create', { method: 'POST' })
-              const data = await res.json()
-              if (data.customer?.id) {
-                window.location.href = `/?q=${data.customer.id}`
-              }
-            }}
+          <Link
+            href="/customers/new"
             className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-600 bg-[#0b1220] px-6 py-4 text-white hover:bg-slate-900 sm:w-auto"
           >
             + Add Customer
-          </button>
+          </Link>
 
           <a
             href="/api/export-backup"
