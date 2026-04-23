@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/browser'
 
 type Job = {
@@ -101,55 +101,6 @@ function TextAreaField({
   )
 }
 
-function MobileFriendlyDateField({
-  value,
-  onSave,
-}: {
-  value: string
-  onSave: (value: string) => Promise<void>
-}) {
-  const inputRef = useRef<HTMLInputElement | null>(null)
-  const [currentValue, setCurrentValue] = useState(value)
-
-  function openPicker() {
-    const input = inputRef.current
-    if (!input) return
-    if (typeof (input as HTMLInputElement & { showPicker?: () => void }).showPicker === 'function') {
-      ;(input as HTMLInputElement & { showPicker?: () => void }).showPicker?.()
-    } else {
-      input.focus()
-      input.click()
-    }
-  }
-
-  async function handleChange(next: string) {
-    setCurrentValue(next)
-    await onSave(next)
-  }
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={openPicker}
-        className="flex h-14 w-full items-center justify-between rounded-xl border border-slate-700 bg-[#030712] px-4 text-left text-base text-white outline-none focus:border-red-500"
-      >
-        <span>{currentValue || 'Select date'}</span>
-        <span className="text-slate-400">📅</span>
-      </button>
-      <input
-        ref={inputRef}
-        type="date"
-        value={currentValue}
-        onChange={(e) => void handleChange(e.target.value)}
-        className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
-        tabIndex={-1}
-        aria-hidden="true"
-      />
-    </div>
-  )
-}
-
 export default function SearchResultsClient({ initialCards }: { initialCards: CustomerCard[] }) {
   const supabase = useMemo(() => createClient(), [])
   const [cards, setCards] = useState<CustomerCard[]>(initialCards)
@@ -158,19 +109,12 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
   const [savingCustomerId, setSavingCustomerId] = useState<string | null>(null)
 
   async function updateCustomer(id: string, patch: Partial<CustomerCard>) {
-    const { error } = await supabase
-      .from('customers')
-      .update(patch)
-      .eq('id', id)
+    const { error } = await supabase.from('customers').update(patch).eq('id', id)
     if (error) {
       alert(error.message)
       return
     }
-    setCards((current: CustomerCard[]) =>
-      current.map((card: CustomerCard) =>
-        card.id === id ? { ...card, ...patch } : card
-      )
-    )
+    setCards((current: CustomerCard[]) => current.map((card: CustomerCard) => (card.id === id ? { ...card, ...patch } : card)))
   }
 
   async function updateJob(id: string, patch: Partial<Job>) {
@@ -198,15 +142,7 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
       const today = new Date().toISOString().split('T')[0]
       const { data, error } = await supabase
         .from('service_jobs')
-        .insert([
-          {
-            customer_id: customerId,
-            title: 'New Repair',
-            status: 'in progress',
-            date_in: today,
-            description: '',
-          },
-        ])
+        .insert([{ customer_id: customerId, title: 'New Repair', status: 'in progress', date_in: today, description: '' }])
         .select('*')
         .single()
 
@@ -215,11 +151,7 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
         return
       }
 
-      setCards((current: CustomerCard[]) =>
-        current.map((card: CustomerCard) =>
-          card.id === customerId ? { ...card, jobs: [data as Job, ...card.jobs] } : card
-        )
-      )
+      setCards((current: CustomerCard[]) => current.map((card: CustomerCard) => (card.id === customerId ? { ...card, jobs: [data as Job, ...card.jobs] } : card)))
     } finally {
       setBusyCustomerId(null)
     }
@@ -234,12 +166,7 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
         alert(error.message)
         return
       }
-      setCards((current: CustomerCard[]) =>
-        current.map((card: CustomerCard) => ({
-          ...card,
-          jobs: card.jobs.filter((job: Job) => job.id !== id),
-        }))
-      )
+      setCards((current: CustomerCard[]) => current.map((card: CustomerCard) => ({ ...card, jobs: card.jobs.filter((job: Job) => job.id !== id) })))
     } finally {
       setBusyJobId(null)
     }
@@ -266,27 +193,18 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
   }
 
   if (!cards.length) {
-    return (
-      <div className="rounded-2xl border border-slate-800 bg-[#0b1220] p-5 text-slate-400">
-        No results found.
-      </div>
-    )
+    return <div className="rounded-2xl border border-slate-800 bg-[#0b1220] p-5 text-slate-400">No results found.</div>
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-2xl font-semibold text-white">Results</h2>
-        <span className="rounded-full bg-slate-800 px-3 py-1 text-sm text-slate-300">
-          {cards.length} customer{cards.length === 1 ? '' : 's'}
-        </span>
+        <span className="rounded-full bg-slate-800 px-3 py-1 text-sm text-slate-300">{cards.length} customer{cards.length === 1 ? '' : 's'}</span>
       </div>
 
       {cards.map((customer: CustomerCard) => (
-        <div
-          key={customer.id}
-          className="rounded-[24px] border border-slate-800 bg-[#0b1220] p-5 shadow-2xl shadow-black/20"
-        >
+        <div key={customer.id} className="rounded-[24px] border border-slate-800 bg-[#0b1220] p-5 shadow-2xl shadow-black/20">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0 flex-1 space-y-3">
               <div className="flex flex-wrap items-center gap-3">
@@ -296,11 +214,7 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
                   className="w-full max-w-xl rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-3xl font-bold text-white outline-none focus:border-red-500"
                   placeholder="Customer name"
                 />
-                {customer.directMatch && (
-                  <span className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-red-300">
-                    Match
-                  </span>
-                )}
+                {customer.directMatch && <span className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-red-300">Match</span>}
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
@@ -327,22 +241,8 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
             </div>
 
             <div className="flex flex-wrap gap-2">
-              {customer.phone && (
-                <a
-                  href={`tel:${customer.phone}`}
-                  className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-100 hover:bg-slate-900"
-                >
-                  Call
-                </a>
-              )}
-              {customer.email && (
-                <a
-                  href={`mailto:${customer.email}`}
-                  className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-100 hover:bg-slate-900"
-                >
-                  Email
-                </a>
-              )}
+              {customer.phone && <a href={`tel:${customer.phone}`} className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-100 hover:bg-slate-900">Call</a>}
+              {customer.email && <a href={`mailto:${customer.email}`} className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-100 hover:bg-slate-900">Email</a>}
             </div>
           </div>
 
@@ -350,17 +250,8 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
             <div className="mb-4 flex items-center justify-between gap-4">
               <h4 className="text-lg font-semibold text-white">Repairs</h4>
               <div className="flex items-center gap-3">
-                <span className="rounded-full bg-slate-900 px-3 py-1 text-sm text-slate-300">
-                  {customer.jobs.length} job{customer.jobs.length === 1 ? '' : 's'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => addRepair(customer.id)}
-                  disabled={busyCustomerId === customer.id}
-                  className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
-                >
-                  {busyCustomerId === customer.id ? 'Adding...' : 'Add Repair'}
-                </button>
+                <span className="rounded-full bg-slate-900 px-3 py-1 text-sm text-slate-300">{customer.jobs.length} job{customer.jobs.length === 1 ? '' : 's'}</span>
+                <button type="button" onClick={() => addRepair(customer.id)} disabled={busyCustomerId === customer.id} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">{busyCustomerId === customer.id ? 'Adding...' : 'Add Repair'}</button>
               </div>
             </div>
 
@@ -370,10 +261,7 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
                   const daysInShop = getDaysInShop(job)
                   const dateValue = (job.date_in || '').split('T')[0]
                   return (
-                    <div
-                      key={job.id}
-                      className="rounded-2xl border border-slate-800 bg-[#09111f] px-4 py-4"
-                    >
+                    <div key={job.id} className="rounded-2xl border border-slate-800 bg-[#09111f] px-4 py-4">
                       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                         <div className="min-w-0 flex-1 space-y-3">
                           <div className="flex flex-wrap items-center gap-2">
@@ -384,33 +272,24 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
                               placeholder="Drone / Repair title"
                             />
 
-                            <select
-                              value={job.status || 'in progress'}
-                              onChange={(e) => updateJob(job.id, { status: e.target.value })}
-                              className="rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-sm text-amber-200 outline-none focus:border-red-500"
-                            >
-                              {STATUS_OPTIONS.map((option) => (
-                                <option key={option} value={option}>
-                                  {option}
-                                </option>
-                              ))}
+                            <select value={job.status || 'in progress'} onChange={(e) => updateJob(job.id, { status: e.target.value })} className="rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-sm text-amber-200 outline-none focus:border-red-500">
+                              {STATUS_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
                             </select>
 
-                            <span
-                              className={`rounded-full px-3 py-1 text-xs font-medium ${getDaysBadgeClass(daysInShop)}`}
-                            >
-                              {daysInShop === null
-                                ? 'No date'
-                                : `${daysInShop} day${daysInShop === 1 ? '' : 's'} in shop`}
+                            <span className={`rounded-full px-3 py-1 text-xs font-medium ${getDaysBadgeClass(daysInShop)}`}>
+                              {daysInShop === null ? 'No date' : `${daysInShop} day${daysInShop === 1 ? '' : 's'} in shop`}
                             </span>
                           </div>
 
                           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                             <div>
                               <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">Date In</div>
-                              <MobileFriendlyDateField
+                              <input
+                                type="date"
                                 value={dateValue}
-                                onSave={(next) => updateJob(job.id, { date_in: next })}
+                                onChange={(e) => updateJob(job.id, { date_in: e.target.value })}
+                                className="h-14 w-full rounded-xl border border-slate-700 bg-[#030712] px-4 text-base text-white outline-none focus:border-red-500"
+                                style={{ colorScheme: 'dark' }}
                               />
                             </div>
                             <div>
@@ -436,20 +315,8 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
                           <div>
                             <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">Actions</div>
                             <div className="flex gap-2">
-                              <Link
-                                href={`/jobs/${job.id}/photos`}
-                                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-100 hover:bg-slate-900"
-                              >
-                                Photos
-                              </Link>
-                              {customer.phone && (
-                                <a
-                                  href={`tel:${customer.phone}`}
-                                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-100 hover:bg-slate-900"
-                                >
-                                  Call
-                                </a>
-                              )}
+                              <Link href={`/jobs/${job.id}/photos`} className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-100 hover:bg-slate-900">Photos</Link>
+                              {customer.phone && <a href={`tel:${customer.phone}`} className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-100 hover:bg-slate-900">Call</a>}
                             </div>
                           </div>
 
@@ -460,20 +327,11 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
                             placeholder="Repair description"
                           />
 
-                          <div className="text-sm text-slate-400">
-                            Current estimate: {formatCurrency(job.estimate)} · Current actual: {formatCurrency(job.final_price)}
-                          </div>
+                          <div className="text-sm text-slate-400">Current estimate: {formatCurrency(job.estimate)} · Current actual: {formatCurrency(job.final_price)}</div>
                         </div>
 
                         <div className="flex shrink-0 xl:justify-end">
-                          <button
-                            type="button"
-                            onClick={() => deleteRepair(job.id)}
-                            disabled={busyJobId === job.id}
-                            className="rounded-xl bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-60"
-                          >
-                            {busyJobId === job.id ? 'Deleting...' : 'Delete'}
-                          </button>
+                          <button type="button" onClick={() => deleteRepair(job.id)} disabled={busyJobId === job.id} className="rounded-xl bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-60">{busyJobId === job.id ? 'Deleting...' : 'Delete'}</button>
                         </div>
                       </div>
                     </div>
@@ -481,32 +339,14 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
                 })}
               </div>
             ) : (
-              <div className="rounded-2xl border border-slate-800 bg-[#09111f] p-4 text-slate-400">
-                No repairs found for this customer.
-              </div>
+              <div className="rounded-2xl border border-slate-800 bg-[#09111f] p-4 text-slate-400">No repairs found for this customer.</div>
             )}
           </div>
 
           <div className="mt-5 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => deleteCustomer(customer.id)}
-              disabled={busyCustomerId === customer.id}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-600 text-lg text-white hover:bg-slate-900 disabled:opacity-60"
-              aria-label="Delete Customer"
-              title="Delete Customer"
-            >
-              🗑️
-            </button>
+            <button type="button" onClick={() => deleteCustomer(customer.id)} disabled={busyCustomerId === customer.id} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-600 text-lg text-white hover:bg-slate-900 disabled:opacity-60" aria-label="Delete Customer" title="Delete Customer">🗑️</button>
 
-            <button
-              type="button"
-              onClick={() => saveEntry(customer.id)}
-              disabled={savingCustomerId === customer.id}
-              className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
-            >
-              {savingCustomerId === customer.id ? 'Saved' : 'Save Entry'}
-            </button>
+            <button type="button" onClick={() => saveEntry(customer.id)} disabled={savingCustomerId === customer.id} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">{savingCustomerId === customer.id ? 'Saved' : 'Save Entry'}</button>
           </div>
         </div>
       ))}
