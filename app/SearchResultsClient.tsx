@@ -59,7 +59,7 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
         return (
           <Link
             key={j?.id || c.id}
-            href={`/customers/${c.id}`}
+            href={j ? `/jobs/${j.id}` : '#'}
             className="block rounded-2xl border border-slate-800 bg-[#0b1220] px-5 py-4 hover:bg-[#10192b]"
           >
             <div className="flex justify-between gap-4">
