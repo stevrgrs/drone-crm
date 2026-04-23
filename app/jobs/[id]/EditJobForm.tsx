@@ -4,7 +4,12 @@ import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/browser'
 
-const STATUS_OPTIONS = ['urgent', 'in progress', 'completed', 'picked up']
+const STATUS_OPTIONS = [
+  { value: 'urgent', label: 'Urgent' },
+  { value: 'in progress', label: 'In Progress' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'picked up', label: 'Picked Up' },
+]
 
 export default function EditJobForm({ job, customer }: { job: any; customer?: any }) {
   const supabase = useMemo(() => createClient(), [])
@@ -91,7 +96,7 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
           className="p-3 rounded-xl bg-[#030712] border border-slate-700 text-white"
         >
           {STATUS_OPTIONS.map((option) => (
-            <option key={option} value={option}>{option}</option>
+            <option key={option.value} value={option.value}>{option.label}</option>
           ))}
         </select>
 
