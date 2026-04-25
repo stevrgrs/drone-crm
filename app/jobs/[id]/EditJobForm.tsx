@@ -11,14 +11,20 @@ const STATUS_OPTIONS = [
   { value: 'picked up', label: 'Picked Up' },
 ]
 
+function cleanMoneyValue(value: string) {
+  const trimmed = String(value || '').trim()
+  if (!trimmed) return null
+  return trimmed.replace(/[$,]/g, '')
+}
+
 export default function EditJobForm({ job, customer }: { job: any; customer?: any }) {
   const supabase = useMemo(() => createClient(), [])
 
   const [title, setTitle] = useState(job.title || '')
   const [description, setDescription] = useState(job.description || '')
   const [status, setStatus] = useState(job.status || 'in progress')
-  const [estimate, setEstimate] = useState(job.estimate || '')
-  const [finalPrice, setFinalPrice] = useState(job.final_price || '')
+  const [estimate, setEstimate] = useState(job.estimate == null ? '' : String(job.estimate))
+  const [finalPrice, setFinalPrice] = useState(job.final_price == null ? '' : String(job.final_price))
   const [dateIn, setDateIn] = useState((job.date_in || '').split('T')[0])
   const [saving, setSaving] = useState(false)
 
@@ -28,12 +34,12 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
       const { error } = await supabase
         .from('service_jobs')
         .update({
-          title,
-          description,
+          title: title.trim(),
+          description: description.trim(),
           status,
-          estimate,
-          final_price: finalPrice,
-          date_in: dateIn,
+          estimate: cleanMoneyValue(estimate),
+          final_price: cleanMoneyValue(finalPrice),
+          date_in: dateIn || null,
         })
         .eq('id', job.id)
 
@@ -112,6 +118,7 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
           value={estimate}
           onChange={(e) => setEstimate(e.target.value)}
           placeholder="Estimate"
+          inputMode="decimal"
           className="p-3 rounded-xl bg-[#030712] border border-slate-700 text-white"
         />
 
@@ -119,6 +126,7 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
           value={finalPrice}
           onChange={(e) => setFinalPrice(e.target.value)}
           placeholder="Final Price"
+          inputMode="decimal"
           className="p-3 rounded-xl bg-[#030712] border border-slate-700 text-white"
         />
 
