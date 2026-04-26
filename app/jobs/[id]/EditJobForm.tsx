@@ -22,6 +22,8 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
 
   const [title, setTitle] = useState(job.title || '')
   const [description, setDescription] = useState(job.description || '')
+  const [diagnosis, setDiagnosis] = useState(job.diagnosis || '')
+  const [treatment, setTreatment] = useState(job.treatment || '')
   const [status, setStatus] = useState(job.status || 'in progress')
   const [estimate, setEstimate] = useState(job.estimate == null ? '' : String(job.estimate))
   const [finalPrice, setFinalPrice] = useState(job.final_price == null ? '' : String(job.final_price))
@@ -36,6 +38,8 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
         .update({
           title: title.trim(),
           description: description.trim(),
+          diagnosis: diagnosis.trim() || null,
+          treatment: treatment.trim() || null,
           status,
           estimate: cleanMoneyValue(estimate),
           final_price: cleanMoneyValue(finalPrice),
@@ -136,6 +140,22 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
           placeholder="Description"
           className="p-3 rounded-xl bg-[#030712] border border-slate-700 text-white md:col-span-2"
           rows={5}
+        />
+
+        <textarea
+          value={diagnosis}
+          onChange={(e) => setDiagnosis(e.target.value)}
+          placeholder="Diagnosis"
+          className="p-3 rounded-xl bg-[#030712] border border-slate-700 text-white md:col-span-2"
+          rows={4}
+        />
+
+        <textarea
+          value={treatment}
+          onChange={(e) => setTreatment(e.target.value)}
+          placeholder="Treatment"
+          className="p-3 rounded-xl bg-[#030712] border border-slate-700 text-white md:col-span-2"
+          rows={4}
         />
       </div>
     </div>
