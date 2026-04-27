@@ -31,6 +31,16 @@ function makeEmptyJob(): NewJob {
   }
 }
 
+function normalizePhone(value: string) {
+  const digits = value.replace(/\D/g, '')
+
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return digits.slice(1)
+  }
+
+  return digits
+}
+
 export default function NewCustomerPage() {
   const supabase = createClient()
   const router = useRouter()
@@ -61,9 +71,11 @@ export default function NewCustomerPage() {
 
     setSaving(true)
     try {
+      const cleanPhone = normalizePhone(phone)
+
       const { data: createdCustomer, error: customerError } = await supabase
         .from('customers')
-        .insert([{ full_name: fullName.trim(), phone: phone.trim(), email: email.trim(), notes: notes.trim() }])
+        .insert([{ full_name: fullName.trim(), phone: cleanPhone, email: email.trim(), notes: notes.trim() }])
         .select('*')
         .single()
 
@@ -109,7 +121,7 @@ export default function NewCustomerPage() {
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full Name" className="rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white" />
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" className="rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white" />
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" inputMode="tel" autoComplete="tel" className="rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white" />
             <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="md:col-span-2 rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white" />
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes" rows={5} className="md:col-span-2 rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white" />
           </div>
