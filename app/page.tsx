@@ -74,8 +74,9 @@ export default async function Home({ searchParams }: { searchParams?: { q?: stri
   return (
     <main className="min-h-screen bg-[#050914] px-4 py-6 text-white">
       <div className="mx-auto max-w-md">
+
         <div className="mb-6 flex justify-center">
-          <img src="/logo.png" alt="Cardinal Drones CRM" className="w-full max-w-xs" />
+          <img src="/CDlogo.png" alt="Cardinal Drones CRM" className="w-full max-w-xs" />
         </div>
 
         <form method="GET" className="mb-5">
