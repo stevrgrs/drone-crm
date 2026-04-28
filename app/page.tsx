@@ -75,12 +75,10 @@ export default async function Home({ searchParams }: { searchParams?: { q?: stri
     <main className="min-h-screen bg-[#050914] px-4 py-6 text-white">
       <div className="mx-auto max-w-md">
 
-        {/* LOGO */}
         <div className="mb-6 flex justify-center">
-          <img src="/cardinal-drones-crm-logo.svg" alt="Cardinal Drones CRM" className="w-full max-w-xs" />
+          <img src="/logo.png" alt="Cardinal Drones CRM" className="w-full max-w-xs" />
         </div>
 
-        {/* SEARCH */}
         <form method="GET" className="mb-5">
           <div className="rounded-2xl border border-slate-800 bg-[#0b1220] p-4">
             <input
@@ -100,7 +98,6 @@ export default async function Home({ searchParams }: { searchParams?: { q?: stri
           </div>
         </form>
 
-        {/* ACTION BUTTONS */}
         <div className="mb-6 flex flex-col gap-3">
           <Link
             href="/customers/new"
@@ -117,7 +114,6 @@ export default async function Home({ searchParams }: { searchParams?: { q?: stri
           </a>
         </div>
 
-        {/* RESULTS */}
         {term && <SearchResultsClient initialCards={customerCards} />}
       </div>
     </main>
