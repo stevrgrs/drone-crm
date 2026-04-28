@@ -72,7 +72,7 @@ export default async function Home({ searchParams }: { searchParams?: { q?: stri
   }
 
   return (
-    <main className="min-h-screen bg-[#050914] px-4 py-6 text-white">
+    <main className="min-h-screen bg-black px-4 py-6 text-white">
       <div className="mx-auto max-w-md">
 
         <div className="mb-6 flex justify-center">
