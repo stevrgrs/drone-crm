@@ -41,6 +41,26 @@ function normalizePhone(value: string) {
   return digits
 }
 
+function formatPhoneForDisplay(value: string) {
+  const digits = normalizePhone(value).slice(0, 10)
+
+  if (digits.length === 0) return ''
+  if (digits.length < 4) return digits
+  if (digits.length < 7) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
+}
+
+function isValidPhone(value: string) {
+  const digits = normalizePhone(value)
+  return digits.length === 10
+}
+
+function cleanMoneyValue(value: string) {
+  const trimmed = String(value || '').trim()
+  if (!trimmed) return null
+  return trimmed.replace(/[$,]/g, '')
+}
+
 export default function NewCustomerPage() {
   const supabase = createClient()
   const router = useRouter()
@@ -69,13 +89,17 @@ export default function NewCustomerPage() {
       return
     }
 
+    const cleanPhone = normalizePhone(phone)
+    if (phone.trim() && !isValidPhone(phone)) {
+      alert('Please enter a valid 10 digit phone number.')
+      return
+    }
+
     setSaving(true)
     try {
-      const cleanPhone = normalizePhone(phone)
-
       const { data: createdCustomer, error: customerError } = await supabase
         .from('customers')
-        .insert([{ full_name: fullName.trim(), phone: cleanPhone, email: email.trim(), notes: notes.trim() }])
+        .insert([{ full_name: fullName.trim(), phone: cleanPhone || null, email: email.trim(), notes: notes.trim() }])
         .select('*')
         .single()
 
@@ -94,8 +118,8 @@ export default function NewCustomerPage() {
           description: job.description.trim(),
           diagnosis: job.diagnosis.trim() || null,
           treatment: job.treatment.trim() || null,
-          estimate: job.estimate || null,
-          final_price: job.final_price || null,
+          estimate: cleanMoneyValue(job.estimate),
+          final_price: cleanMoneyValue(job.final_price),
         }))
 
       if (jobsToCreate.length) {
@@ -121,7 +145,7 @@ export default function NewCustomerPage() {
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full Name" className="rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white" />
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" inputMode="tel" autoComplete="tel" className="rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white" />
+            <input type="tel" value={phone} onChange={(e) => setPhone(formatPhoneForDisplay(e.target.value))} placeholder="(561) 555-5555" inputMode="tel" autoComplete="tel" className="rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white" />
             <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="md:col-span-2 rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white" />
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes" rows={5} className="md:col-span-2 rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white" />
           </div>
@@ -139,8 +163,8 @@ export default function NewCustomerPage() {
                   {STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
                 </select>
                 <input type="date" value={job.date_in} onChange={(e) => updateJob(index, { date_in: e.target.value })} className="mb-2 w-full rounded-xl bg-[#030712] px-3 py-2 text-white" style={{ colorScheme: 'dark' }} />
-                <input value={job.estimate} onChange={(e) => updateJob(index, { estimate: e.target.value })} placeholder="Estimate" className="mb-2 w-full rounded-xl bg-[#030712] px-3 py-2" />
-                <input value={job.final_price} onChange={(e) => updateJob(index, { final_price: e.target.value })} placeholder="Final Price" className="mb-2 w-full rounded-xl bg-[#030712] px-3 py-2" />
+                <input value={job.estimate} onChange={(e) => updateJob(index, { estimate: e.target.value })} placeholder="Estimate" inputMode="decimal" className="mb-2 w-full rounded-xl bg-[#030712] px-3 py-2" />
+                <input value={job.final_price} onChange={(e) => updateJob(index, { final_price: e.target.value })} placeholder="Final Price" inputMode="decimal" className="mb-2 w-full rounded-xl bg-[#030712] px-3 py-2" />
                 <textarea value={job.description} onChange={(e) => updateJob(index, { description: e.target.value })} placeholder="Description" className="mb-2 w-full rounded-xl bg-[#030712] px-3 py-2" />
                 <textarea value={job.diagnosis} onChange={(e) => updateJob(index, { diagnosis: e.target.value })} placeholder="Diagnosis" className="mb-2 w-full rounded-xl bg-[#030712] px-3 py-2" />
                 <textarea value={job.treatment} onChange={(e) => updateJob(index, { treatment: e.target.value })} placeholder="Treatment" className="mb-2 w-full rounded-xl bg-[#030712] px-3 py-2" />
