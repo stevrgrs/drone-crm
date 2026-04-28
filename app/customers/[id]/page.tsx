@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import EditCustomerForm from './EditCustomerForm'
+import AddRepairButton from './AddRepairButton'
 
 export default async function CustomerPage({ params }: { params: { id: string } }) {
   const supabase = await createClient()
@@ -29,7 +30,10 @@ export default async function CustomerPage({ params }: { params: { id: string } 
         <EditCustomerForm customer={customer} />
 
         <div className="rounded-2xl border border-slate-800 bg-[#09111f] p-5">
-          <h2 className="text-xl font-semibold">Repairs</h2>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-semibold">Repairs</h2>
+            <AddRepairButton customerId={customer.id} />
+          </div>
 
           <div className="mt-4 space-y-2">
             {jobs?.map((job) => (
