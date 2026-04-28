@@ -6,11 +6,7 @@ function escapeLike(value: string) {
   return value.replace(/[%_,]/g, '')
 }
 
-export default async function Home({
-  searchParams,
-}: {
-  searchParams?: { q?: string }
-}) {
+export default async function Home({ searchParams }: { searchParams?: { q?: string } }) {
   const query = (searchParams?.q || '').trim()
   const term = escapeLike(query)
 
@@ -22,9 +18,7 @@ export default async function Home({
     const { data: matchedCustomers } = await supabase
       .from('customers')
       .select('*')
-      .or(
-        `full_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%,notes.ilike.%${term}%`
-      )
+      .or(`full_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%,notes.ilike.%${term}%`)
       .limit(20)
 
     const directCustomers = matchedCustomers || []
@@ -78,45 +72,52 @@ export default async function Home({
   }
 
   return (
-    <main className="min-h-screen bg-[#050914] px-4 py-8 text-white md:px-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white">Cardinal Drones CRM</h1>
+    <main className="min-h-screen bg-[#050914] px-4 py-6 text-white">
+      <div className="mx-auto max-w-md">
+
+        {/* LOGO */}
+        <div className="mb-6 flex justify-center">
+          <img src="/cardinal-drones-crm-logo.svg" alt="Cardinal Drones CRM" className="w-full max-w-xs" />
         </div>
 
-        <form method="GET" className="mb-4">
+        {/* SEARCH */}
+        <form method="GET" className="mb-5">
           <div className="rounded-2xl border border-slate-800 bg-[#0b1220] p-4">
-            <div className="flex flex-col gap-4">
-              <input
-                type="text"
-                name="q"
-                defaultValue={query}
-                placeholder="Search..."
-                className="h-16 w-full rounded-xl bg-[#030712] px-5 text-lg text-white placeholder:text-slate-500"
-              />
-              <button type="submit" className="h-16 w-full rounded-xl bg-red-600 px-6 text-lg font-semibold text-white">
-                Search
-              </button>
-            </div>
+            <input
+              type="text"
+              name="q"
+              defaultValue={query}
+              placeholder="Search..."
+              className="mb-3 h-14 w-full rounded-xl bg-[#030712] px-4 text-base text-white placeholder:text-slate-500"
+            />
+
+            <button
+              type="submit"
+              className="h-14 w-full rounded-xl bg-red-600 text-lg font-semibold text-white"
+            >
+              Search
+            </button>
           </div>
         </form>
 
-        <div className="mb-8 flex flex-col gap-3">
+        {/* ACTION BUTTONS */}
+        <div className="mb-6 flex flex-col gap-3">
           <Link
             href="/customers/new"
-            className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-600 bg-[#0b1220] px-6 py-5 text-lg text-white hover:bg-slate-900"
+            className="flex h-14 items-center justify-center rounded-2xl border border-slate-600 text-white"
           >
             + Add Customer
           </Link>
 
           <a
             href="/api/export-backup"
-            className="inline-flex w-full items-center justify-center rounded-2xl bg-green-600 px-6 py-5 text-lg text-white hover:bg-green-700"
+            className="flex h-14 items-center justify-center rounded-2xl border border-slate-600 text-white"
           >
             Export Backup
           </a>
         </div>
 
+        {/* RESULTS */}
         {term && <SearchResultsClient initialCards={customerCards} />}
       </div>
     </main>
