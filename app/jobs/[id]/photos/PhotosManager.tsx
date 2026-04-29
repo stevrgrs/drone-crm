@@ -9,10 +9,14 @@ type JobImage = {
   id: string
   image_url: string
   details?: string | null
-  caption?: string | null
 }
 
 const PHOTO_STAGES: PhotoStage[] = ['Before', 'In Progress', 'After']
+const STAGE_SLUGS: Record<PhotoStage, string> = {
+  Before: 'before',
+  'In Progress': 'in-progress',
+  After: 'after',
+}
 
 function getStoragePathFromPublicUrl(url: string) {
   const marker = '/storage/v1/object/public/customer-images/'
@@ -22,9 +26,9 @@ function getStoragePathFromPublicUrl(url: string) {
 }
 
 function getPhotoStage(image: JobImage): PhotoStage {
-  if (image.caption === 'Before' || image.caption === 'In Progress' || image.caption === 'After') {
-    return image.caption
-  }
+  const path = getStoragePathFromPublicUrl(image.image_url) || ''
+  if (path.includes('/before/')) return 'Before'
+  if (path.includes('/after/')) return 'After'
   return 'In Progress'
 }
 
@@ -37,13 +41,7 @@ function CameraIcon() {
   )
 }
 
-export default function PhotosManager({
-  jobId,
-  images,
-}: {
-  jobId: string
-  images: JobImage[]
-}) {
+export default function PhotosManager({ jobId, images }: { jobId: string; images: JobImage[] }) {
   const supabase = useMemo(() => createClient(), [])
   const cameraInputRef = useRef<HTMLInputElement | null>(null)
   const libraryInputRef = useRef<HTMLInputElement | null>(null)
@@ -85,7 +83,8 @@ export default function PhotosManager({
     try {
       for (const file of files) {
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-        const filePath = `jobs/${jobId}/${Date.now()}_${safeName}`
+        const stageSlug = STAGE_SLUGS[uploadStage]
+        const filePath = `jobs/${jobId}/${stageSlug}/${Date.now()}_${safeName}`
 
         const { error: uploadError } = await supabase.storage
           .from('customer-images')
@@ -99,13 +98,11 @@ export default function PhotosManager({
           return
         }
 
-        const { data } = supabase.storage
-          .from('customer-images')
-          .getPublicUrl(filePath)
+        const { data } = supabase.storage.from('customer-images').getPublicUrl(filePath)
 
         const { error: insertError } = await supabase
           .from('job_images')
-          .insert([{ job_id: jobId, image_url: data.publicUrl, caption: uploadStage }])
+          .insert([{ job_id: jobId, image_url: data.publicUrl }])
 
         if (insertError) {
           alert(insertError.message)
@@ -149,10 +146,7 @@ export default function PhotosManager({
 
     setSavingDetails(true)
     try {
-      const { error } = await supabase
-        .from('job_images')
-        .update({ details: detailsDraft })
-        .eq('id', selected.id)
+      const { error } = await supabase.from('job_images').update({ details: detailsDraft }).eq('id', selected.id)
 
       if (error) {
         alert(error.message)
@@ -164,20 +158,6 @@ export default function PhotosManager({
     } finally {
       setSavingDetails(false)
     }
-  }
-
-  async function handleChangeStage(image: JobImage, nextStage: PhotoStage) {
-    const { error } = await supabase
-      .from('job_images')
-      .update({ caption: nextStage })
-      .eq('id', image.id)
-
-    if (error) {
-      alert(error.message)
-      return
-    }
-
-    window.location.reload()
   }
 
   return (
@@ -210,9 +190,7 @@ export default function PhotosManager({
                   >
                     <div className="flex items-center gap-2">
                       <span className="text-lg font-semibold text-white">{stage}</span>
-                      <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300">
-                        {stageImages.length}
-                      </span>
+                      <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300">{stageImages.length}</span>
                     </div>
                     <div className="mt-1 text-xs text-slate-500">{isOpen ? 'Tap to collapse' : 'Tap to expand'}</div>
                   </button>
@@ -250,22 +228,13 @@ export default function PhotosManager({
                             <button type="button" onClick={() => setSelected(image)} className="block w-full">
                               <img src={image.image_url} alt={`${stage} repair photo`} className="h-44 w-full object-cover" />
                             </button>
-                            <div className="space-y-2 p-3">
-                              <select
-                                value={getPhotoStage(image)}
-                                onChange={(e) => handleChangeStage(image, e.target.value as PhotoStage)}
-                                className="w-full rounded-xl border border-slate-700 bg-[#030712] px-3 py-2 text-sm text-white"
-                              >
-                                {PHOTO_STAGES.map((option) => <option key={option} value={option}>{option}</option>)}
-                              </select>
-                              <div className="flex gap-2">
-                                <button type="button" onClick={() => setSelected(image)} className="flex-1 rounded-xl border border-slate-600 px-3 py-2 text-sm text-slate-100 hover:bg-slate-900">
-                                  View
-                                </button>
-                                <button type="button" onClick={() => handleDelete(image)} disabled={deletingId === image.id} className="flex-1 rounded-xl bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60">
-                                  {deletingId === image.id ? 'Removing...' : 'Remove'}
-                                </button>
-                              </div>
+                            <div className="flex gap-2 p-3">
+                              <button type="button" onClick={() => setSelected(image)} className="flex-1 rounded-xl border border-slate-600 px-3 py-2 text-sm text-slate-100 hover:bg-slate-900">
+                                View
+                              </button>
+                              <button type="button" onClick={() => handleDelete(image)} disabled={deletingId === image.id} className="flex-1 rounded-xl bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60">
+                                {deletingId === image.id ? 'Removing...' : 'Remove'}
+                              </button>
                             </div>
                           </div>
                         ))}
