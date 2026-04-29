@@ -17,6 +17,38 @@ function cleanMoneyValue(value: string) {
   return trimmed.replace(/[$,]/g, '')
 }
 
+function CollapsibleTextSection({
+  title,
+  value,
+  onChange,
+  placeholder,
+  defaultOpen = false,
+}: {
+  title: string
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+  defaultOpen?: boolean
+}) {
+  return (
+    <details open={defaultOpen} className="rounded-2xl border border-slate-800 bg-[#0b1220] p-4 md:col-span-2">
+      <summary className="cursor-pointer list-none text-lg font-semibold text-white">
+        <div className="flex items-center justify-between">
+          <span>{title}</span>
+          <span className="text-sm text-slate-500">Tap to expand</span>
+        </div>
+      </summary>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="mt-4 w-full rounded-xl border border-slate-700 bg-[#030712] p-3 text-white placeholder:text-slate-500"
+        rows={5}
+      />
+    </details>
+  )
+}
+
 export default function EditJobForm({ job, customer }: { job: any; customer?: any }) {
   const supabase = useMemo(() => createClient(), [])
 
@@ -97,13 +129,13 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Drone / Title"
-          className="p-3 rounded-xl bg-[#030712] border border-slate-700 text-white"
+          className="rounded-xl border border-slate-700 bg-[#030712] p-3 text-white"
         />
 
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          className="p-3 rounded-xl bg-[#030712] border border-slate-700 text-white"
+          className="rounded-xl border border-slate-700 bg-[#030712] p-3 text-white"
         >
           {STATUS_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>{option.label}</option>
@@ -114,7 +146,7 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
           type="date"
           value={dateIn}
           onChange={(e) => setDateIn(e.target.value)}
-          className="p-3 rounded-xl bg-[#030712] border border-slate-700 text-white"
+          className="rounded-xl border border-slate-700 bg-[#030712] p-3 text-white"
           style={{ colorScheme: 'dark' }}
         />
 
@@ -123,7 +155,7 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
           onChange={(e) => setEstimate(e.target.value)}
           placeholder="Estimate"
           inputMode="decimal"
-          className="p-3 rounded-xl bg-[#030712] border border-slate-700 text-white"
+          className="rounded-xl border border-slate-700 bg-[#030712] p-3 text-white"
         />
 
         <input
@@ -131,31 +163,29 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
           onChange={(e) => setFinalPrice(e.target.value)}
           placeholder="Final Price"
           inputMode="decimal"
-          className="p-3 rounded-xl bg-[#030712] border border-slate-700 text-white"
+          className="rounded-xl border border-slate-700 bg-[#030712] p-3 text-white"
         />
 
-        <textarea
+        <CollapsibleTextSection
+          title="Description"
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Description"
-          className="p-3 rounded-xl bg-[#030712] border border-slate-700 text-white md:col-span-2"
-          rows={5}
+          onChange={setDescription}
+          placeholder="General repair description..."
+          defaultOpen
         />
 
-        <textarea
+        <CollapsibleTextSection
+          title="Repair Notes"
           value={diagnosis}
-          onChange={(e) => setDiagnosis(e.target.value)}
-          placeholder="Diagnosis"
-          className="p-3 rounded-xl bg-[#030712] border border-slate-700 text-white md:col-span-2"
-          rows={4}
+          onChange={setDiagnosis}
+          placeholder="Add repair notes, diagnosis, findings, or observations..."
         />
 
-        <textarea
+        <CollapsibleTextSection
+          title="What Was Fixed"
           value={treatment}
-          onChange={(e) => setTreatment(e.target.value)}
-          placeholder="Treatment"
-          className="p-3 rounded-xl bg-[#030712] border border-slate-700 text-white md:col-span-2"
-          rows={4}
+          onChange={setTreatment}
+          placeholder="List what was fixed, replaced, adjusted, or completed..."
         />
       </div>
     </div>
