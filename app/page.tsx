@@ -106,6 +106,13 @@ export default async function Home({ searchParams }: { searchParams?: { q?: stri
             + Add Customer
           </Link>
 
+          <Link
+            href="/completed"
+            className="flex h-14 items-center justify-center rounded-2xl border border-red-600 text-red-400"
+          >
+            Show Completed List
+          </Link>
+
           <a
             href="/api/export-backup"
             className="flex h-14 items-center justify-center rounded-2xl border border-slate-600 text-white"
