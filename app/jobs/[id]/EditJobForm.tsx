@@ -11,10 +11,39 @@ const STATUS_OPTIONS = [
   { value: 'picked up', label: 'Picked Up' },
 ]
 
+const TIMESTAMP_PATTERN = /^\d{2}\/\d{2}\/\d{4} @ \d{1,2}:\d{2} (AM|PM) - /i
+
 function cleanMoneyValue(value: string) {
   const trimmed = String(value || '').trim()
   if (!trimmed) return null
   return trimmed.replace(/[$,]/g, '')
+}
+
+function getRepairNoteTimestamp() {
+  const now = new Date()
+  const mm = String(now.getMonth() + 1).padStart(2, '0')
+  const dd = String(now.getDate()).padStart(2, '0')
+  const yyyy = now.getFullYear()
+  let hours = now.getHours()
+  const ampm = hours >= 12 ? 'PM' : 'AM'
+  hours = hours % 12 || 12
+  const minutes = String(now.getMinutes()).padStart(2, '0')
+  return `${mm}/${dd}/${yyyy} @ ${String(hours).padStart(2, '0')}:${minutes} ${ampm}`
+}
+
+function timestampRepairNotes(value: string) {
+  const timestamp = getRepairNoteTimestamp()
+
+  return value
+    .split('\n')
+    .map((line) => {
+      const trimmed = line.trim()
+      if (!trimmed) return ''
+      if (TIMESTAMP_PATTERN.test(trimmed)) return trimmed
+      return `${timestamp} - ${trimmed}`
+    })
+    .join('\n')
+    .trim()
 }
 
 function CollapsibleTextSection({
@@ -65,12 +94,14 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
   async function handleSave() {
     setSaving(true)
     try {
+      const timestampedRepairNotes = diagnosis.trim() ? timestampRepairNotes(diagnosis) : null
+
       const { error } = await supabase
         .from('service_jobs')
         .update({
           title: title.trim(),
           description: description.trim(),
-          diagnosis: diagnosis.trim() || null,
+          diagnosis: timestampedRepairNotes,
           treatment: treatment.trim() || null,
           status,
           estimate: cleanMoneyValue(estimate),
