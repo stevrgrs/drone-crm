@@ -4,9 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/browser'
 
 const STATUS_OPTIONS = [
-  { value: 'urgent', label: 'Urgent' },
   { value: 'in progress', label: 'In Progress' },
   { value: 'completed', label: 'Completed' },
+]
+
+const PICKUP_OPTIONS = [
+  { value: 'not picked up', label: 'Not Picked Up' },
   { value: 'picked up', label: 'Picked Up' },
 ]
 
@@ -32,7 +35,6 @@ function getRepairNoteTimestamp() {
 
 function timestampRepairNotes(value: string) {
   const timestamp = getRepairNoteTimestamp()
-
   return value
     .split('\n')
     .map((line) => {
@@ -65,14 +67,22 @@ function CollapsibleTextSection({ title, value, onChange, placeholder, defaultOp
   )
 }
 
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">{children}</label>
+}
+
 export default function EditJobForm({ job, customer }: { job: any; customer?: any }) {
   const supabase = useMemo(() => createClient(), [])
+
+  const initialStatus = job.status === 'picked up' ? 'completed' : (job.status || 'in progress')
+  const initialPickupStatus = job.status === 'picked up' ? 'picked up' : 'not picked up'
 
   const [title, setTitle] = useState(job.title || '')
   const [description, setDescription] = useState(job.description || '')
   const [diagnosis, setDiagnosis] = useState(job.diagnosis || '')
   const [treatment, setTreatment] = useState(job.treatment || '')
-  const [status, setStatus] = useState(job.status || 'in progress')
+  const [status, setStatus] = useState(initialStatus)
+  const [pickupStatus, setPickupStatus] = useState(initialPickupStatus)
   const [estimate, setEstimate] = useState(job.estimate == null ? '' : String(job.estimate))
   const [finalPrice, setFinalPrice] = useState(job.final_price == null ? '' : String(job.final_price))
   const [dateIn, setDateIn] = useState((job.date_in || '').split('T')[0])
@@ -80,14 +90,14 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
   const [saving, setSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState('Saved')
 
-  const valuesRef = useRef({ title, description, diagnosis, treatment, status, estimate, finalPrice, dateIn, pickupDate })
+  const valuesRef = useRef({ title, description, diagnosis, treatment, status, pickupStatus, estimate, finalPrice, dateIn, pickupDate })
   const lastSavedRef = useRef('')
   const isSavingRef = useRef(false)
 
   useEffect(() => {
-    valuesRef.current = { title, description, diagnosis, treatment, status, estimate, finalPrice, dateIn, pickupDate }
+    valuesRef.current = { title, description, diagnosis, treatment, status, pickupStatus, estimate, finalPrice, dateIn, pickupDate }
     setSaveStatus('Unsaved changes')
-  }, [title, description, diagnosis, treatment, status, estimate, finalPrice, dateIn, pickupDate])
+  }, [title, description, diagnosis, treatment, status, pickupStatus, estimate, finalPrice, dateIn, pickupDate])
 
   const saveRepair = useCallback(async ({ reload = false, quiet = false } = {}) => {
     if (isSavingRef.current) return
@@ -100,14 +110,13 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
       description: current.description.trim(),
       diagnosis: timestampedRepairNotes,
       treatment: current.treatment.trim() || null,
-      status: current.status,
+      status: current.pickupStatus === 'picked up' ? 'picked up' : current.status,
       estimate: cleanMoneyValue(current.estimate),
       final_price: cleanMoneyValue(current.finalPrice),
       date_in: current.dateIn || null,
-      pickup_date: current.status === 'picked up' ? current.pickupDate || null : null,
     }
 
-    const signature = JSON.stringify(payload)
+    const signature = JSON.stringify({ ...payload, pickupDate: current.pickupDate })
     if (signature === lastSavedRef.current) return
 
     isSavingRef.current = true
@@ -128,7 +137,6 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
         setDiagnosis(timestampedRepairNotes)
       }
       setSaveStatus('Saved')
-
       if (reload) window.location.reload()
     } finally {
       isSavingRef.current = false
@@ -144,15 +152,12 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
     function autoSave() {
       saveRepair({ quiet: true })
     }
-
     function handleVisibilityChange() {
       if (document.visibilityState === 'hidden') autoSave()
     }
-
     window.addEventListener('blur', autoSave)
     window.addEventListener('pagehide', autoSave)
     document.addEventListener('visibilitychange', handleVisibilityChange)
-
     return () => {
       autoSave()
       window.removeEventListener('blur', autoSave)
@@ -174,22 +179,41 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <input value={title} onChange={(e) => setTitle(e.target.value)} className="rounded-xl bg-[#030712] p-3 text-white" />
+        <div className="md:col-span-2">
+          <FieldLabel>Drone / Repair Title</FieldLabel>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} className="w-full rounded-xl bg-[#030712] p-3 text-white" />
+        </div>
 
-        <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-xl bg-[#030712] p-3 text-white">
-          {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
+        <div>
+          <FieldLabel>Repair Status</FieldLabel>
+          <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full rounded-xl bg-[#030712] p-3 text-white">
+            {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
 
-        <input type="date" value={dateIn} onChange={(e) => setDateIn(e.target.value)} className="rounded-xl bg-[#030712] p-3 text-white" style={{ colorScheme: 'dark' }} />
+        <div>
+          <FieldLabel>Pickup Status</FieldLabel>
+          <select value={pickupStatus} onChange={(e) => setPickupStatus(e.target.value)} className="w-full rounded-xl bg-[#030712] p-3 text-white">
+            {PICKUP_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
 
-        {status === 'picked up' && (
-          <input
-            type="date"
-            value={pickupDate}
-            onChange={(e) => setPickupDate(e.target.value)}
-            className="rounded-xl bg-[#030712] p-3 text-white"
-            style={{ colorScheme: 'dark' }}
-          />
+        <div>
+          <FieldLabel>Drop-off Date</FieldLabel>
+          <input type="date" value={dateIn} onChange={(e) => setDateIn(e.target.value)} className="w-full rounded-xl bg-[#030712] p-3 text-white" style={{ colorScheme: 'dark' }} />
+        </div>
+
+        {pickupStatus === 'picked up' && (
+          <div>
+            <FieldLabel>Pickup Date</FieldLabel>
+            <input
+              type="date"
+              value={pickupDate}
+              onChange={(e) => setPickupDate(e.target.value)}
+              className="w-full rounded-xl bg-[#030712] p-3 text-white"
+              style={{ colorScheme: 'dark' }}
+            />
+          </div>
         )}
 
         <input value={estimate} onChange={(e) => setEstimate(e.target.value)} placeholder="Estimate" inputMode="decimal" className="rounded-xl bg-[#030712] p-3 text-white" />
