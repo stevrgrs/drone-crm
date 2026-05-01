@@ -1,65 +1,49 @@
+import Link from 'next/link'
 import HistoryNav from '@/app/components/HistoryNav'
+import { createClient } from '@/lib/supabase/server'
 
-export default function AppointmentsPage() {
+export default async function AppointmentsPage() {
+  const supabase = await createClient()
+
+  const { data: appointments } = await supabase
+    .from('appointments')
+    .select('*')
+    .order('appointment_date', { ascending: true })
+
   return (
     <main className="min-h-screen bg-black px-4 py-8 text-white md:px-8">
       <div className="mx-auto max-w-2xl space-y-6">
         <HistoryNav />
 
-        <div>
-          <h1 className="text-3xl font-bold text-white">Pickups / Dropoffs</h1>
-          <p className="mt-2 text-sm text-slate-400">
-            Enter upcoming customer pickup or dropoff appointments.
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-white">Pickups / Dropoffs</h1>
+            <p className="mt-2 text-sm text-slate-400">Upcoming appointments</p>
+          </div>
+
+          <Link
+            href="/appointments/new"
+            className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white"
+          >
+            + Add
+          </Link>
         </div>
 
-        <div className="rounded-2xl border border-slate-800 bg-[#09111f] p-5">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Customer Name</label>
-              <input className="w-full rounded-xl bg-[#030712] p-3 text-white" placeholder="Customer name" />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Phone</label>
-              <input type="tel" inputMode="tel" className="w-full rounded-xl bg-[#030712] p-3 text-white" placeholder="(561) 555-5555" />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Appointment Type</label>
-              <select className="w-full rounded-xl bg-[#030712] p-3 text-white">
-                <option>Dropoff</option>
-                <option>Pickup</option>
-                <option>Estimate / Check</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Date</label>
-              <input type="date" className="w-full rounded-xl bg-[#030712] p-3 text-white" style={{ colorScheme: 'dark' }} />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Time</label>
-              <input type="time" className="w-full rounded-xl bg-[#030712] p-3 text-white" style={{ colorScheme: 'dark' }} />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Drone / Item</label>
-              <input className="w-full rounded-xl bg-[#030712] p-3 text-white" placeholder="DJI Phantom 3" />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Notes</label>
-              <textarea rows={5} className="w-full rounded-xl bg-[#030712] p-3 text-white" placeholder="What are they bringing in? What needs to be checked?" />
-            </div>
-          </div>
-
-          <div className="mt-6 flex justify-end">
-            <button className="rounded-xl bg-red-600 px-5 py-3 font-semibold text-white">
-              Save Appointment
-            </button>
-          </div>
+        <div className="space-y-2">
+          {(appointments || []).length ? (
+            appointments.map((appt) => (
+              <div key={appt.id} className="rounded-xl border border-slate-800 bg-[#0b1220] p-3">
+                <div className="font-semibold text-white">{appt.customer_name}</div>
+                <div className="text-sm text-slate-400">{appt.phone || 'No phone'}</div>
+                <div className="text-sm text-slate-300">{appt.drone || ''}</div>
+                <div className="text-sm text-slate-400">
+                  {appt.appointment_date} @ {appt.appointment_time}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-slate-400">No appointments yet</div>
+          )}
         </div>
       </div>
     </main>
