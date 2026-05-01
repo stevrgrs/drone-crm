@@ -1,7 +1,6 @@
 'use client'
 
-import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/browser'
 
 const STATUS_OPTIONS = [
@@ -79,64 +78,122 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
   const [dateIn, setDateIn] = useState((job.date_in || '').split('T')[0])
   const [pickupDate, setPickupDate] = useState((job.pickup_date || '').split('T')[0])
   const [saving, setSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState('Saved')
 
-  async function handleSave() {
+  const valuesRef = useRef({ title, description, diagnosis, treatment, status, estimate, finalPrice, dateIn, pickupDate })
+  const lastSavedRef = useRef('')
+  const isSavingRef = useRef(false)
+
+  useEffect(() => {
+    valuesRef.current = { title, description, diagnosis, treatment, status, estimate, finalPrice, dateIn, pickupDate }
+    setSaveStatus('Unsaved changes')
+  }, [title, description, diagnosis, treatment, status, estimate, finalPrice, dateIn, pickupDate])
+
+  const saveRepair = useCallback(async ({ reload = false, quiet = false } = {}) => {
+    if (isSavingRef.current) return
+
+    const current = valuesRef.current
+    const timestampedRepairNotes = current.diagnosis.trim() ? timestampRepairNotes(current.diagnosis) : null
+
+    const payload = {
+      title: current.title.trim(),
+      description: current.description.trim(),
+      diagnosis: timestampedRepairNotes,
+      treatment: current.treatment.trim() || null,
+      status: current.status,
+      estimate: cleanMoneyValue(current.estimate),
+      final_price: cleanMoneyValue(current.finalPrice),
+      date_in: current.dateIn || null,
+      pickup_date: current.status === 'picked up' ? current.pickupDate || null : null,
+    }
+
+    const signature = JSON.stringify(payload)
+    if (signature === lastSavedRef.current) return
+
+    isSavingRef.current = true
     setSaving(true)
-    try {
-      const timestampedRepairNotes = diagnosis.trim() ? timestampRepairNotes(diagnosis) : null
+    if (!quiet) setSaveStatus('Saving...')
 
-      const { error } = await supabase
-        .from('service_jobs')
-        .update({
-          title: title.trim(),
-          description: description.trim(),
-          diagnosis: timestampedRepairNotes,
-          treatment: treatment.trim() || null,
-          status,
-          estimate: cleanMoneyValue(estimate),
-          final_price: cleanMoneyValue(finalPrice),
-          date_in: dateIn || null,
-          pickup_date: status === 'picked up' ? pickupDate || null : null,
-        })
-        .eq('id', job.id)
+    try {
+      const { error } = await supabase.from('service_jobs').update(payload).eq('id', job.id)
 
       if (error) {
-        alert(error.message)
+        if (!quiet) alert(error.message)
+        setSaveStatus('Save failed')
         return
       }
 
-      window.location.reload()
+      lastSavedRef.current = signature
+      if (timestampedRepairNotes && timestampedRepairNotes !== current.diagnosis) {
+        setDiagnosis(timestampedRepairNotes)
+      }
+      setSaveStatus('Saved')
+
+      if (reload) window.location.reload()
     } finally {
+      isSavingRef.current = false
       setSaving(false)
     }
+  }, [job.id, supabase])
+
+  async function handleSave() {
+    await saveRepair({ reload: true, quiet: false })
   }
+
+  useEffect(() => {
+    function autoSave() {
+      saveRepair({ quiet: true })
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'hidden') autoSave()
+    }
+
+    window.addEventListener('blur', autoSave)
+    window.addEventListener('pagehide', autoSave)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      autoSave()
+      window.removeEventListener('blur', autoSave)
+      window.removeEventListener('pagehide', autoSave)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [saveRepair])
 
   return (
     <div className="rounded-2xl border border-slate-800 bg-[#09111f] p-5">
-      <div className="mb-4 flex justify-between">
+      <div className="mb-4 flex justify-between gap-3">
         <div>
           <h2 className="text-xl text-white">Edit Repair</h2>
+          <p className="mt-1 text-xs text-slate-500">{saveStatus}</p>
         </div>
-        <button onClick={handleSave} className="bg-red-600 px-4 py-2 rounded text-white">Save</button>
+        <button onClick={handleSave} disabled={saving} className="rounded bg-red-600 px-4 py-2 text-white disabled:opacity-60">
+          {saving ? 'Saving...' : 'Save'}
+        </button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <input value={title} onChange={(e)=>setTitle(e.target.value)} className="p-3 bg-[#030712] text-white" />
+        <input value={title} onChange={(e) => setTitle(e.target.value)} className="rounded-xl bg-[#030712] p-3 text-white" />
 
-        <select value={status} onChange={(e)=>setStatus(e.target.value)} className="p-3 bg-[#030712] text-white">
-          {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-xl bg-[#030712] p-3 text-white">
+          {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
 
-        <input type="date" value={dateIn} onChange={(e)=>setDateIn(e.target.value)} className="p-3 bg-[#030712] text-white" />
+        <input type="date" value={dateIn} onChange={(e) => setDateIn(e.target.value)} className="rounded-xl bg-[#030712] p-3 text-white" style={{ colorScheme: 'dark' }} />
 
         {status === 'picked up' && (
           <input
             type="date"
             value={pickupDate}
-            onChange={(e)=>setPickupDate(e.target.value)}
-            className="p-3 bg-[#030712] text-white"
+            onChange={(e) => setPickupDate(e.target.value)}
+            className="rounded-xl bg-[#030712] p-3 text-white"
+            style={{ colorScheme: 'dark' }}
           />
         )}
+
+        <input value={estimate} onChange={(e) => setEstimate(e.target.value)} placeholder="Estimate" inputMode="decimal" className="rounded-xl bg-[#030712] p-3 text-white" />
+        <input value={finalPrice} onChange={(e) => setFinalPrice(e.target.value)} placeholder="Final Price" inputMode="decimal" className="rounded-xl bg-[#030712] p-3 text-white" />
 
         <CollapsibleTextSection title="Description" value={description} onChange={setDescription} placeholder="" defaultOpen />
         <CollapsibleTextSection title="Repair Notes" value={diagnosis} onChange={setDiagnosis} placeholder="" />
