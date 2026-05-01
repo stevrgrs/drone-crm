@@ -25,7 +25,7 @@ export default async function CustomerPage({ params }: { params: { id: string } 
   return (
     <main className="min-h-screen bg-[#050914] px-4 py-8 text-white">
       <div className="mx-auto max-w-4xl space-y-6">
-        <Link href="/" className="text-slate-400 hover:text-white">← Back to Search</Link>
+        <Link href="/" className="text-slate-400 hover:text-white">Back to Search</Link>
 
         <EditCustomerForm customer={customer} />
 
@@ -39,7 +39,7 @@ export default async function CustomerPage({ params }: { params: { id: string } 
             {jobs?.map((job) => (
               <Link
                 key={job.id}
-                href={`/jobs/${job.id}/photos`}
+                href={`/jobs/${job.id}`}
                 className="block rounded-xl border border-slate-700 p-3 hover:bg-slate-900"
               >
                 {job.title}
