@@ -32,6 +32,11 @@ function getPhotoStage(image: JobImage): PhotoStage {
   return 'In Progress'
 }
 
+function isVideo(image: JobImage) {
+  const cleanUrl = image.image_url.split('?')[0].toLowerCase()
+  return /\.(mp4|mov|webm|m4v|avi|quicktime)$/.test(cleanUrl)
+}
+
 function CameraIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-6 w-6 fill-white">
@@ -91,7 +96,8 @@ export default function PhotosManager({ jobId, images }: { jobId: string; images
       for (const file of files) {
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
         const stageSlug = STAGE_SLUGS[uploadStage]
-        const filePath = `jobs/${jobId}/${stageSlug}/${Date.now()}_${safeName}`
+        const mediaFolder = file.type.startsWith('video/') ? 'videos' : 'photos'
+        const filePath = `jobs/${jobId}/${stageSlug}/${mediaFolder}/${Date.now()}_${safeName}`
 
         const { error: uploadError } = await supabase.storage
           .from('customer-images')
@@ -126,7 +132,7 @@ export default function PhotosManager({ jobId, images }: { jobId: string; images
   }
 
   async function handleDelete(image: JobImage) {
-    const confirmed = window.confirm('Remove this photo?')
+    const confirmed = window.confirm(`Remove this ${isVideo(image) ? 'video' : 'photo'}?`)
     if (!confirmed) return
 
     setDeletingId(image.id)
@@ -151,6 +157,10 @@ export default function PhotosManager({ jobId, images }: { jobId: string; images
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-800 bg-[#09111f] p-5">
+        <div className="mb-4 text-sm text-slate-400">
+          {uploading ? 'Uploading...' : 'Add photos or short test videos for each repair stage.'}
+        </div>
+
         <div className="space-y-4">
           {PHOTO_STAGES.map((stage) => {
             const stageImages = images.filter((image) => getPhotoStage(image) === stage)
@@ -161,44 +171,69 @@ export default function PhotosManager({ jobId, images }: { jobId: string; images
                   <span className="text-lg font-semibold text-white">{stage}</span>
 
                   <div className="flex gap-2">
-                    <button onClick={() => chooseCamera(stage)} className="h-11 w-11 rounded-full bg-red-600 flex items-center justify-center">
+                    <button onClick={() => chooseCamera(stage)} className="h-11 w-11 rounded-full bg-red-600 flex items-center justify-center" title="Take photo or video">
                       <CameraIcon />
                     </button>
 
-                    <button onClick={() => chooseLibrary(stage)} className="h-10 w-10 rounded-xl border border-slate-600 text-white">
+                    <button onClick={() => chooseLibrary(stage)} className="h-10 w-10 rounded-xl border border-slate-600 text-white" title="Upload from library">
                       ⋯
                     </button>
                   </div>
                 </div>
 
                 <div className="mt-4 grid grid-cols-2 gap-4">
-                  {stageImages.map((image) => (
-                    <div key={image.id} className="rounded-xl overflow-hidden border border-slate-800">
-                      <img src={image.image_url} className="w-full h-40 object-cover" />
+                  {stageImages.map((image) => {
+                    const video = isVideo(image)
 
-                      <div className="flex gap-2 p-2">
-                        <button onClick={() => setSelected(image)} className="flex-1 border rounded-xl py-1 text-white">
-                          View
-                        </button>
+                    return (
+                      <div key={image.id} className="rounded-xl overflow-hidden border border-slate-800">
+                        {video ? (
+                          <video src={image.image_url} className="w-full h-40 object-cover bg-black" controls preload="metadata" />
+                        ) : (
+                          <img src={image.image_url} className="w-full h-40 object-cover" />
+                        )}
 
-                        <button
-                          onClick={() => handleDelete(image)}
-                          className="h-9 w-9 flex items-center justify-center rounded-xl bg-red-600"
-                        >
-                          <TrashIcon />
-                        </button>
+                        <div className="flex gap-2 p-2">
+                          <button onClick={() => setSelected(image)} className="flex-1 border rounded-xl py-1 text-white">
+                            {video ? 'Play' : 'View'}
+                          </button>
+
+                          <button
+                            onClick={() => handleDelete(image)}
+                            disabled={deletingId === image.id}
+                            className="h-9 w-9 flex items-center justify-center rounded-xl bg-red-600 disabled:opacity-50"
+                          >
+                            <TrashIcon />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </section>
             )
           })}
         </div>
 
-        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleAddPhotos} className="hidden" />
-        <input ref={libraryInputRef} type="file" accept="image/*" multiple onChange={handleAddPhotos} className="hidden" />
+        <input ref={cameraInputRef} type="file" accept="image/*,video/*" capture="environment" onChange={handleAddPhotos} className="hidden" />
+        <input ref={libraryInputRef} type="file" accept="image/*,video/*" multiple onChange={handleAddPhotos} className="hidden" />
       </div>
+
+      {selected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setSelected(null)}>
+          <div className="w-full max-w-3xl rounded-2xl border border-slate-700 bg-[#09111f] p-4" onClick={(e) => e.stopPropagation()}>
+            {isVideo(selected) ? (
+              <video src={selected.image_url} className="max-h-[70vh] w-full rounded-xl bg-black" controls autoPlay />
+            ) : (
+              <img src={selected.image_url} className="max-h-[70vh] w-full rounded-xl object-contain" />
+            )}
+
+            <button onClick={() => setSelected(null)} className="mt-4 w-full rounded-xl border border-slate-600 py-3 text-white">
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
