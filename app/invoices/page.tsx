@@ -44,23 +44,30 @@ We will contact you before proceeding if the cost exceeds this estimate.
   };
 
   return (
-    <main className="min-h-screen bg-black p-4 text-white">
-      <div className="mx-auto max-w-md space-y-3">
-        <h1 className="text-xl font-bold">New Invoice</h1>
+    <main className="min-h-screen bg-black px-4 py-10 text-white">
+      <div className="mx-auto max-w-md">
 
-        <input name="name" placeholder="Customer Name" onChange={handleChange} className="w-full p-3 rounded bg-[#0b1220]" />
-        <input name="phone" placeholder="Phone Number" onChange={handleChange} className="w-full p-3 rounded bg-[#0b1220]" />
-        <input name="drone" placeholder="Drone / Item" onChange={handleChange} className="w-full p-3 rounded bg-[#0b1220]" />
-        <textarea name="inventory" placeholder="Items Left With Us" onChange={handleChange} className="w-full p-3 rounded bg-[#0b1220]" />
-        <textarea name="repairs" placeholder="Repairs" onChange={handleChange} className="w-full p-3 rounded bg-[#0b1220]" />
-        <input name="estimate" placeholder="Estimate" onChange={handleChange} className="w-full p-3 rounded bg-[#0b1220]" />
+        <div className="mb-8 flex justify-center">
+          <img src="/CDlogo.png" alt="Cardinal Drones" className="w-full max-w-xs" />
+        </div>
 
-        <button
-          onClick={generateSMS}
-          className="w-full p-4 bg-red-600 rounded font-semibold"
-        >
-          Send Invoice via Text
-        </button>
+        <div className="space-y-4 rounded-2xl border border-slate-800 bg-[#0b1220] p-5">
+          <h1 className="text-xl font-bold text-center">New Invoice</h1>
+
+          <input name="name" placeholder="Customer Name" onChange={handleChange} className="w-full p-3 rounded bg-[#030712]" />
+          <input name="phone" placeholder="Phone Number" onChange={handleChange} className="w-full p-3 rounded bg-[#030712]" />
+          <input name="drone" placeholder="Drone / Item" onChange={handleChange} className="w-full p-3 rounded bg-[#030712]" />
+          <textarea name="inventory" placeholder="Items Left With Us" onChange={handleChange} className="w-full p-3 rounded bg-[#030712]" />
+          <textarea name="repairs" placeholder="Repairs" onChange={handleChange} className="w-full p-3 rounded bg-[#030712]" />
+          <input name="estimate" placeholder="Estimate" onChange={handleChange} className="w-full p-3 rounded bg-[#030712]" />
+
+          <button
+            onClick={generateSMS}
+            className="w-full p-4 bg-red-600 rounded font-semibold"
+          >
+            Send Invoice via Text
+          </button>
+        </div>
       </div>
     </main>
   );
