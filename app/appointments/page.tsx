@@ -5,10 +5,12 @@ import { createClient } from '@/lib/supabase/server'
 export default async function AppointmentsPage() {
   const supabase = await createClient()
 
-  const { data: appointments } = await supabase
+  const { data } = await supabase
     .from('appointments')
     .select('*')
     .order('appointment_date', { ascending: true })
+
+  const appointments = data ?? []
 
   return (
     <main className="min-h-screen bg-black px-4 py-8 text-white md:px-8">
@@ -30,7 +32,7 @@ export default async function AppointmentsPage() {
         </div>
 
         <div className="space-y-2">
-          {(appointments || []).length ? (
+          {appointments.length ? (
             appointments.map((appt) => (
               <div key={appt.id} className="rounded-xl border border-slate-800 bg-[#0b1220] p-3">
                 <div className="font-semibold text-white">{appt.customer_name}</div>
