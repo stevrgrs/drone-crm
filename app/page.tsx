@@ -107,6 +107,13 @@ export default async function Home({ searchParams }: { searchParams?: { q?: stri
           </Link>
 
           <Link
+            href="/invoices"
+            className="flex h-14 items-center justify-center rounded-2xl border border-red-600 bg-[#0b1220] text-red-400"
+          >
+            Invoices
+          </Link>
+
+          <Link
             href="/completed"
             className="flex h-14 items-center justify-center rounded-2xl border border-red-600 text-red-400"
           >
