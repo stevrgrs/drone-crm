@@ -98,6 +98,12 @@ export default async function Home({ searchParams }: { searchParams?: { q?: stri
           </div>
         </form>
 
+        {term && (
+          <div className="mb-6">
+            <SearchResultsClient initialCards={customerCards} />
+          </div>
+        )}
+
         <div className="mb-6 flex flex-col gap-3">
           <Link
             href="/customers/new"
@@ -134,8 +140,6 @@ export default async function Home({ searchParams }: { searchParams?: { q?: stri
             Export Backup
           </a>
         </div>
-
-        {term && <SearchResultsClient initialCards={customerCards} />}
       </div>
     </main>
   )
