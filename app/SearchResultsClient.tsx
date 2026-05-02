@@ -23,6 +23,25 @@ type SearchRow = {
   j: Job | null
 }
 
+function normalizePhone(value: string) {
+  const digits = value.replace(/\D/g, '')
+
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return digits.slice(1)
+  }
+
+  return digits
+}
+
+function formatPhoneForDisplay(value?: string | null) {
+  const digits = normalizePhone(value || '').slice(0, 10)
+
+  if (digits.length === 0) return ''
+  if (digits.length < 4) return digits
+  if (digits.length < 7) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
+}
+
 function getDaysInShop(job: Job) {
   const source = job.date_in || job.created_at || null
   if (!source) return null
@@ -55,6 +74,7 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
     <div className="space-y-4">
       {rows.map(({ c, j }) => {
         const days = j ? getDaysInShop(j) : null
+        const formattedPhone = formatPhoneForDisplay(c.phone)
 
         return (
           <Link
@@ -65,7 +85,7 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
             <div className="flex justify-between gap-4">
               <div className="min-w-0">
                 <div className="truncate text-xl font-bold text-white">{c.full_name || 'Unnamed Customer'}</div>
-                <div className="text-sm text-slate-400">{c.phone || 'No phone number'}</div>
+                <div className="text-sm text-slate-400">{formattedPhone || 'No phone number'}</div>
                 <div className="text-sm text-slate-300">{j?.title || 'No repair entered yet'}</div>
               </div>
               <div className="flex items-center gap-2">
