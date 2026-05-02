@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function InvoicesPage() {
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+
   const [form, setForm] = useState({
     name: "",
     phone: "",
@@ -12,12 +14,24 @@ export default function InvoicesPage() {
     estimate: "",
   });
 
+  useEffect(() => {
+    const now = new Date();
+    const id = `INV-${now.getFullYear()}${(now.getMonth()+1)
+      .toString()
+      .padStart(2,'0')}${now.getDate()
+      .toString()
+      .padStart(2,'0')}-${now.getHours()}${now.getMinutes()}`;
+    setInvoiceNumber(id);
+  }, []);
+
   const handleChange = (e: any) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
   const generateSMS = () => {
-    const message = `Cardinal Drones Invoice / Estimate
+    const message = `CARDINAL DRONES
+
+Invoice #: ${invoiceNumber}
 
 Customer: ${form.name}
 Phone: ${form.phone}
@@ -35,9 +49,7 @@ Estimated Cost:
 $${form.estimate}
 
 This estimate is based on similar repairs and may change depending on actual condition.
-We will contact you before proceeding if the cost exceeds this estimate.
-
-- Cardinal Drones`;
+We will contact you before proceeding if the cost exceeds this estimate.`;
 
     const encoded = encodeURIComponent(message);
     window.location.href = `sms:${form.phone}?body=${encoded}`;
@@ -53,6 +65,10 @@ We will contact you before proceeding if the cost exceeds this estimate.
 
         <div className="space-y-4 rounded-2xl border border-slate-800 bg-[#0b1220] p-5">
           <h1 className="text-xl font-bold text-center">New Invoice</h1>
+
+          <div className="text-sm text-center text-slate-400">
+            Invoice #: {invoiceNumber}
+          </div>
 
           <input name="name" placeholder="Customer Name" onChange={handleChange} className="w-full p-3 rounded bg-[#030712]" />
           <input name="phone" placeholder="Phone Number" onChange={handleChange} className="w-full p-3 rounded bg-[#030712]" />
