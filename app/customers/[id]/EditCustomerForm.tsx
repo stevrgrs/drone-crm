@@ -12,20 +12,51 @@ type Customer = {
   notes?: string | null
 }
 
+function normalizePhone(value: string) {
+  const digits = value.replace(/\D/g, '')
+
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return digits.slice(1)
+  }
+
+  return digits
+}
+
+function formatPhoneForDisplay(value: string) {
+  const digits = normalizePhone(value).slice(0, 10)
+
+  if (digits.length === 0) return ''
+  if (digits.length < 4) return digits
+  if (digits.length < 7) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
+}
+
+function isValidPhone(value: string) {
+  const digits = normalizePhone(value)
+  return digits.length === 10
+}
+
 export default function EditCustomerForm({ customer }: { customer: Customer }) {
   const supabase = useMemo(() => createClient(), [])
   const [saving, setSaving] = useState(false)
   const [fullName, setFullName] = useState(customer.full_name || customer.name || '')
-  const [phone, setPhone] = useState(customer.phone || '')
+  const [phone, setPhone] = useState(formatPhoneForDisplay(customer.phone || ''))
   const [email, setEmail] = useState(customer.email || '')
   const [notes, setNotes] = useState(customer.notes || '')
 
   async function handleSave() {
+    const cleanPhone = normalizePhone(phone)
+
+    if (phone.trim() && !isValidPhone(phone)) {
+      alert('Please enter a valid 10 digit phone number.')
+      return
+    }
+
     setSaving(true)
     try {
       const payload = {
         full_name: fullName.trim(),
-        phone: phone.trim(),
+        phone: cleanPhone || null,
         email: email.trim(),
         notes: notes.trim(),
       }
@@ -59,7 +90,7 @@ export default function EditCustomerForm({ customer }: { customer: Customer }) {
 
         <div>
           <label className="block text-sm font-medium text-white">Phone</label>
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white outline-none focus:border-red-500" />
+          <input type="tel" value={phone} onChange={(e) => setPhone(formatPhoneForDisplay(e.target.value))} placeholder="(561) 555-5555" inputMode="tel" autoComplete="tel" className="mt-2 w-full rounded-xl border border-slate-700 bg-[#030712] px-4 py-3 text-white outline-none focus:border-red-500" />
         </div>
 
         <div>
