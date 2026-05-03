@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/browser'
 
 const STATUS_OPTIONS = [
@@ -9,29 +9,47 @@ const STATUS_OPTIONS = [
   { value: 'completed', label: 'Completed' },
 ]
 
+function cleanMoneyValue(value: string) {
+  const cleaned = String(value || '').replace(/[^0-9.-]/g, '').trim()
+  return cleaned === '' ? null : Number(cleaned)
+}
+
 export default function EditJobForm({ job, customer }: { job: any; customer?: any }) {
   const supabase = useMemo(() => createClient(), [])
 
   const [title, setTitle] = useState(job.title || '')
   const [description, setDescription] = useState(job.description || '')
   const [status, setStatus] = useState(job.status || 'in progress')
-  const [estimate, setEstimate] = useState(job.estimate || '')
-  const [finalPrice, setFinalPrice] = useState(job.final_price || '')
+  const [estimate, setEstimate] = useState(job.estimate ?? '')
+  const [finalPrice, setFinalPrice] = useState(job.final_price ?? '')
   const [dateIn, setDateIn] = useState((job.date_in || '').split('T')[0])
   const [saving, setSaving] = useState(false)
 
   async function handleSave() {
     setSaving(true)
     try {
+      const estimateValue = cleanMoneyValue(estimate)
+      const finalPriceValue = cleanMoneyValue(finalPrice)
+
+      if (estimateValue !== null && Number.isNaN(estimateValue)) {
+        alert('Estimate must be a valid number or left blank.')
+        return
+      }
+
+      if (finalPriceValue !== null && Number.isNaN(finalPriceValue)) {
+        alert('Final Price must be a valid number or left blank.')
+        return
+      }
+
       const { error } = await supabase
         .from('service_jobs')
         .update({
           title,
           description,
           status,
-          estimate,
-          final_price: finalPrice,
-          date_in: dateIn,
+          estimate: estimateValue,
+          final_price: finalPriceValue,
+          date_in: dateIn || null,
         })
         .eq('id', job.id)
 
