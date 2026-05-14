@@ -6,13 +6,18 @@ type VoicePromptFormProps = {
   defaultValue: string
 }
 
+type SpeechRecognitionResult = {
+  isFinal?: boolean
+  [index: number]: {
+    transcript?: string
+  }
+}
+
 type SpeechRecognitionResultEvent = {
+  resultIndex?: number
   results?: {
-    [index: number]: {
-      [index: number]: {
-        transcript?: string
-      }
-    }
+    length?: number
+    [index: number]: SpeechRecognitionResult
   }
 }
 
@@ -22,6 +27,7 @@ type SpeechRecognitionErrorEvent = {
 
 type SpeechRecognitionInstance = {
   lang: string
+  continuous?: boolean
   interimResults: boolean
   maxAlternatives: number
   start: () => void
@@ -44,6 +50,8 @@ declare global {
 export default function VoicePromptForm({ defaultValue }: VoicePromptFormProps) {
   const formRef = useRef<HTMLFormElement>(null)
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
+  const transcriptRef = useRef(defaultValue)
+  const shouldSubmitAfterStopRef = useRef(false)
   const [prompt, setPrompt] = useState(defaultValue)
   const [isListening, setIsListening] = useState(false)
   const [voiceMessage, setVoiceMessage] = useState('')
@@ -68,9 +76,22 @@ export default function VoicePromptForm({ defaultValue }: VoicePromptFormProps) 
     form?.requestSubmit()
   }
 
-  function stopVoice() {
+  function finishVoiceAndSearch() {
+    shouldSubmitAfterStopRef.current = true
+    setVoiceMessage('Searching...')
+
+    if (recognitionRef.current) {
+      recognitionRef.current.stop()
+    } else {
+      submitPrompt(transcriptRef.current || prompt)
+    }
+  }
+
+  function stopVoiceOnly() {
+    shouldSubmitAfterStopRef.current = false
     recognitionRef.current?.stop()
     setIsListening(false)
+    setVoiceMessage('Voice stopped. Tap Ask when ready.')
   }
 
   function startVoice() {
@@ -82,19 +103,31 @@ export default function VoicePromptForm({ defaultValue }: VoicePromptFormProps) 
     }
 
     recognitionRef.current?.abort()
+    shouldSubmitAfterStopRef.current = false
+    transcriptRef.current = ''
+    setPrompt('')
 
     const recognition = new Recognition()
     recognition.lang = 'en-US'
-    recognition.interimResults = false
+    recognition.continuous = true
+    recognition.interimResults = true
     recognition.maxAlternatives = 1
     recognition.onresult = (event) => {
-      const transcript = event.results?.[0]?.[0]?.transcript || ''
+      const results = event.results
+      const parts: string[] = []
+      const length = results?.length || 0
 
-      if (transcript.trim()) {
-        setVoiceMessage('Searching...')
-        submitPrompt(transcript)
-      } else {
-        setVoiceMessage('I did not catch anything. Try again.')
+      for (let index = 0; index < length; index += 1) {
+        const transcript = results?.[index]?.[0]?.transcript
+        if (transcript) parts.push(transcript)
+      }
+
+      const nextTranscript = parts.join(' ').replace(/\s+/g, ' ').trim()
+
+      if (nextTranscript) {
+        transcriptRef.current = nextTranscript
+        setPrompt(nextTranscript)
+        setVoiceMessage('Listening... tap Done when finished.')
       }
     }
     recognition.onerror = (event) => {
@@ -102,17 +135,29 @@ export default function VoicePromptForm({ defaultValue }: VoicePromptFormProps) 
       setVoiceMessage(
         event.error === 'not-allowed'
           ? 'Microphone permission was blocked.'
-          : 'I could not hear that. Try again.'
+          : 'Voice input stopped. Tap Voice and try again.'
       )
     }
     recognition.onend = () => {
-      setIsListening(false)
+      const shouldSubmit = shouldSubmitAfterStopRef.current
+      const transcript = transcriptRef.current
+
       recognitionRef.current = null
+      shouldSubmitAfterStopRef.current = false
+      setIsListening(false)
+
+      if (shouldSubmit) {
+        submitPrompt(transcript)
+      } else if (transcript) {
+        setVoiceMessage('Voice captured. Tap Ask when ready.')
+      } else {
+        setVoiceMessage('I did not catch anything. Tap Voice and try again.')
+      }
     }
 
     recognitionRef.current = recognition
     setIsListening(true)
-    setVoiceMessage('Listening...')
+    setVoiceMessage('Listening... tap Done when finished.')
 
     try {
       recognition.start()
@@ -131,24 +176,37 @@ export default function VoicePromptForm({ defaultValue }: VoicePromptFormProps) 
             type="text"
             name="prompt"
             value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
+            onChange={(event) => {
+              transcriptRef.current = event.target.value
+              setPrompt(event.target.value)
+            }}
             placeholder="Ask about customers, jobs, invoices, or notes..."
             className="h-14 min-w-0 flex-1 rounded-xl bg-[#030712] px-4 text-base text-white placeholder:text-slate-500"
           />
 
           <button
             type="button"
-            onClick={isListening ? stopVoice : startVoice}
-            aria-label={isListening ? 'Stop voice input' : 'Use voice input'}
+            onClick={isListening ? finishVoiceAndSearch : startVoice}
+            aria-label={isListening ? 'Done speaking' : 'Use voice input'}
             className={`h-14 w-24 rounded-xl border text-sm font-semibold ${
               isListening
                 ? 'border-red-500 bg-red-950 text-red-100'
                 : 'border-slate-700 bg-slate-900 text-white'
             }`}
           >
-            {isListening ? 'Stop' : 'Voice'}
+            {isListening ? 'Done' : 'Voice'}
           </button>
         </div>
+
+        {isListening && (
+          <button
+            type="button"
+            onClick={stopVoiceOnly}
+            className="mb-3 h-10 w-full rounded-xl border border-slate-700 bg-slate-950 text-sm text-slate-300"
+          >
+            Cancel Voice
+          </button>
+        )}
 
         {voiceMessage && <p className="mb-3 text-sm text-slate-400">{voiceMessage}</p>}
 
