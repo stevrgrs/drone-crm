@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import VoicePromptForm from './VoicePromptForm'
 
 export const dynamic = 'force-dynamic'
 
@@ -185,6 +186,15 @@ function extractResponseText(payload: any) {
   }
 
   return parts.join('\n').trim()
+}
+
+function cleanAnswerText(value: string) {
+  return value
+    .replace(/\*\*/g, '')
+    .replace(/`/g, '')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^\s*\*\s+/gm, '- ')
+    .trim()
 }
 
 async function askOpenAI(instructions: string, input: string, maxOutputTokens = 500) {
@@ -390,13 +400,15 @@ function buildOpenAIContext(results: SearchResults, terms: string[]) {
 async function answerQuestion(question: string, results: SearchResults, plan: SearchPlan) {
   try {
     const context = buildOpenAIContext(results, plan.terms)
-    return await askOpenAI(
-      'You are the Cardinal Drones CRM assistant for Greg. Answer using only the CRM_CONTEXT provided. Be concise and practical. Include names, phone numbers, job status, dates, appointment details, and notes when they help. If the context does not contain the answer, say what was not found and suggest a more specific search. Never invent customer, job, appointment, or invoice details. This is read-only.',
+    const answer = await askOpenAI(
+      'You are the Cardinal Drones CRM assistant for Greg. Answer using only the CRM_CONTEXT provided. Be concise and practical. Use plain text only. Do not use Markdown, bold markers, headings, code formatting, or asterisks. Include names, phone numbers, job status, dates, appointment details, and notes when they help. If the context does not contain the answer, say what was not found and suggest a more specific search. Never invent customer, job, appointment, or invoice details. This is read-only.',
       `Greg asked:\n${question}\n\nCRM_CONTEXT:\n${JSON.stringify(context, null, 2)}`,
       700
     )
+
+    return cleanAnswerText(answer)
   } catch (error) {
-    return plan.error || (error instanceof Error ? error.message : 'OpenAI could not answer this question.')
+    return cleanAnswerText(plan.error || (error instanceof Error ? error.message : 'OpenAI could not answer this question.'))
   }
 }
 
@@ -417,24 +429,7 @@ export default async function AiSearchTestPage({ searchParams }: { searchParams?
           <img src="/CDlogo.png" alt="Cardinal Drones CRM" className="w-full max-w-xs" />
         </div>
 
-        <form className="mb-5">
-          <div className="rounded-2xl border border-slate-800 bg-[#0b1220] p-4">
-            <input
-              type="text"
-              name="prompt"
-              defaultValue={rawPrompt}
-              placeholder="Ask about customers, jobs, invoices, or notes..."
-              className="mb-3 h-14 w-full rounded-xl bg-[#030712] px-4 text-base text-white placeholder:text-slate-500"
-            />
-
-            <button
-              type="submit"
-              className="h-14 w-full rounded-xl bg-red-600 text-lg font-semibold text-white"
-            >
-              Ask
-            </button>
-          </div>
-        </form>
+        <VoicePromptForm defaultValue={rawPrompt} />
 
         {question && (
           <section className="space-y-4">
