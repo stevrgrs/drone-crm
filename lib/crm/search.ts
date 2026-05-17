@@ -53,6 +53,10 @@ function escapeLike(value: string) {
   return value.replace(/[%_,]/g, '')
 }
 
+function formatDateParts(parts: { year: number; month: number; day: number }) {
+  return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`
+}
+
 function getOffsetMinutes(date: Date, timeZone: string) {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,
@@ -115,45 +119,44 @@ function startOfWeekMonday(parts: { year: number; month: number; day: number }) 
   return addDays(parts, -daysSinceMonday)
 }
 
-function fullDayRange(parts: { year: number; month: number; day: number }, timeZone: string) {
-  const end = addDays(parts, 1)
-  return {
-    start: zonedDateTimeToUtcIso(parts.year, parts.month, parts.day, 0, 0, 0, timeZone),
-    end: zonedDateTimeToUtcIso(end.year, end.month, end.day, 0, 0, 0, timeZone),
-  }
+function shouldUseDateIn(rawQuery: string) {
+  const q = rawQuery.toLowerCase()
+  return /\b(came in|come in|date in|dropped off|drop off|brought in|received|intake)\b/.test(q)
 }
 
 function buildStructuredPlan(rawQuery: string, timeZone: string): CrmSearchPlan {
   const q = rawQuery.toLowerCase()
   const today = getZonedTodayParts(timeZone)
   const filters: CrmSearchFilters = {}
+  const useDateIn = shouldUseDateIn(rawQuery)
   let cleanedText = rawQuery
 
-  const setCreatedRange = (startParts: { year: number; month: number; day: number }, endParts: { year: number; month: number; day: number }) => {
-    filters.created_at_start = zonedDateTimeToUtcIso(startParts.year, startParts.month, startParts.day, 0, 0, 0, timeZone)
-    filters.created_at_end = zonedDateTimeToUtcIso(endParts.year, endParts.month, endParts.day, 0, 0, 0, timeZone)
+  const setRange = (startParts: { year: number; month: number; day: number }, endParts: { year: number; month: number; day: number }) => {
+    if (useDateIn) {
+      filters.date_in_start = formatDateParts(startParts)
+      filters.date_in_end = formatDateParts(endParts)
+    } else {
+      filters.created_at_start = zonedDateTimeToUtcIso(startParts.year, startParts.month, startParts.day, 0, 0, 0, timeZone)
+      filters.created_at_end = zonedDateTimeToUtcIso(endParts.year, endParts.month, endParts.day, 0, 0, 0, timeZone)
+    }
   }
 
   if (q.includes('yesterday')) {
     const yesterday = addDays(today, -1)
-    const range = fullDayRange(yesterday, timeZone)
-    filters.created_at_start = range.start
-    filters.created_at_end = range.end
+    setRange(yesterday, today)
     cleanedText = cleanedText.replace(/yesterday/gi, '')
   } else if (q.includes('today')) {
-    const range = fullDayRange(today, timeZone)
-    filters.created_at_start = range.start
-    filters.created_at_end = range.end
+    setRange(today, addDays(today, 1))
     cleanedText = cleanedText.replace(/today/gi, '')
   } else if (q.includes('last week')) {
     const thisWeekStart = startOfWeekMonday(today)
     const lastWeekStart = addDays(thisWeekStart, -7)
-    setCreatedRange(lastWeekStart, thisWeekStart)
+    setRange(lastWeekStart, thisWeekStart)
     cleanedText = cleanedText.replace(/last week/gi, '')
   } else if (q.includes('this week')) {
     const thisWeekStart = startOfWeekMonday(today)
     const nextWeekStart = addDays(thisWeekStart, 7)
-    setCreatedRange(thisWeekStart, nextWeekStart)
+    setRange(thisWeekStart, nextWeekStart)
     cleanedText = cleanedText.replace(/this week/gi, '')
   }
 
@@ -167,7 +170,7 @@ function buildStructuredPlan(rawQuery: string, timeZone: string): CrmSearchPlan 
   const phoneDigits = rawQuery.replace(/\D/g, '')
   if (phoneDigits.length >= 7) filters.phone = phoneDigits
 
-  const filler = /\b(show|me|find|search|jobs|job|customers|customer|drones|drone|that|came|come|in|from|with|the|a|an|for|all|list|what|which|were|was|during)\b/gi
+  const filler = /\b(show|me|find|search|jobs|job|customers|customer|drones|drone|that|came|come|in|from|with|the|a|an|for|all|list|what|which|were|was|during|dropped|off|brought|received|intake)\b/gi
   const remainingText = cleanedText.replace(filler, ' ').replace(/\s+/g, ' ').trim()
 
   if (remainingText) {
@@ -184,6 +187,20 @@ function buildStructuredPlan(rawQuery: string, timeZone: string): CrmSearchPlan 
 
 function uniqueById<T extends { id: string }>(rows: T[]) {
   return Array.from(new Map(rows.map((row) => [row.id, row])).values())
+}
+
+function hasJobFilters(filters: CrmSearchFilters) {
+  return Boolean(filters.status || filters.created_at_start || filters.created_at_end || filters.date_in_start || filters.date_in_end)
+}
+
+function applyJobFilters<T>(query: T, filters: CrmSearchFilters): T {
+  let nextQuery: any = query
+  if (filters.status) nextQuery = nextQuery.ilike('status', `%${escapeLike(filters.status)}%`)
+  if (filters.created_at_start) nextQuery = nextQuery.gte('created_at', filters.created_at_start)
+  if (filters.created_at_end) nextQuery = nextQuery.lt('created_at', filters.created_at_end)
+  if (filters.date_in_start) nextQuery = nextQuery.gte('date_in', filters.date_in_start)
+  if (filters.date_in_end) nextQuery = nextQuery.lt('date_in', filters.date_in_end)
+  return nextQuery as T
 }
 
 export async function searchCrm(rawQuery: string, options?: { timeZone?: string }) {
@@ -232,11 +249,7 @@ export async function searchCrm(rawQuery: string, options?: { timeZone?: string 
       .or(`title.ilike.%${term}%,description.ilike.%${term}%,diagnosis.ilike.%${term}%,treatment.ilike.%${term}%,status.ilike.%${term}%`)
       .limit(75)
 
-    if (filters.status) jobQuery = jobQuery.ilike('status', `%${escapeLike(filters.status)}%`)
-    if (filters.created_at_start) jobQuery = jobQuery.gte('created_at', filters.created_at_start)
-    if (filters.created_at_end) jobQuery = jobQuery.lt('created_at', filters.created_at_end)
-    if (filters.date_in_start) jobQuery = jobQuery.gte('date_in', filters.date_in_start)
-    if (filters.date_in_end) jobQuery = jobQuery.lt('date_in', filters.date_in_end)
+    jobQuery = applyJobFilters(jobQuery, filters)
 
     const { data: jobs, error: jobError } = await jobQuery
     if (jobError) errors.push(jobError.message)
@@ -255,16 +268,10 @@ export async function searchCrm(rawQuery: string, options?: { timeZone?: string 
     customerRows = customerRows.concat(phoneCustomers || [])
   }
 
-  if (!textTerms.length || filters.status || filters.created_at_start || filters.created_at_end || filters.date_in_start || filters.date_in_end) {
+  if (!textTerms.length || hasJobFilters(filters)) {
     let filteredJobQuery = supabase.from('service_jobs').select('*').limit(100)
-
-    if (filters.status) filteredJobQuery = filteredJobQuery.ilike('status', `%${escapeLike(filters.status)}%`)
-    if (filters.created_at_start) filteredJobQuery = filteredJobQuery.gte('created_at', filters.created_at_start)
-    if (filters.created_at_end) filteredJobQuery = filteredJobQuery.lt('created_at', filters.created_at_end)
-    if (filters.date_in_start) filteredJobQuery = filteredJobQuery.gte('date_in', filters.date_in_start)
-    if (filters.date_in_end) filteredJobQuery = filteredJobQuery.lt('date_in', filters.date_in_end)
-
-    filteredJobQuery = filteredJobQuery.order('created_at', { ascending: plan.sort === 'oldest' })
+    filteredJobQuery = applyJobFilters(filteredJobQuery, filters)
+    filteredJobQuery = filteredJobQuery.order(filters.date_in_start ? 'date_in' : 'created_at', { ascending: plan.sort === 'oldest' })
 
     const { data: filteredJobs, error } = await filteredJobQuery
     if (error) errors.push(error.message)
@@ -293,10 +300,7 @@ export async function searchCrm(rawQuery: string, options?: { timeZone?: string 
       .select('*')
       .in('customer_id', directCustomerIds)
 
-    if (filters.created_at_start) directJobsQuery = directJobsQuery.gte('created_at', filters.created_at_start)
-    if (filters.created_at_end) directJobsQuery = directJobsQuery.lt('created_at', filters.created_at_end)
-    if (filters.date_in_start) directJobsQuery = directJobsQuery.gte('date_in', filters.date_in_start)
-    if (filters.date_in_end) directJobsQuery = directJobsQuery.lt('date_in', filters.date_in_end)
+    directJobsQuery = applyJobFilters(directJobsQuery, filters)
 
     const { data: allJobsForDirectCustomers, error } = await directJobsQuery
     if (error) errors.push(error.message)
@@ -314,15 +318,17 @@ export async function searchCrm(rawQuery: string, options?: { timeZone?: string 
     jobsByCustomer.set(job.customer_id, list)
   }
 
-  const cards = allCustomers.map((customer) => ({
-    ...customer,
-    jobs: (jobsByCustomer.get(customer.id) || []).sort((a, b) => {
-      const aDate = new Date(a.date_in || a.created_at || 0).getTime()
-      const bDate = new Date(b.date_in || b.created_at || 0).getTime()
-      return plan.sort === 'oldest' ? aDate - bDate : bDate - aDate
-    }),
-    directMatch: directCustomerIds.includes(customer.id),
-  }))
+  const cards = allCustomers
+    .map((customer) => ({
+      ...customer,
+      jobs: (jobsByCustomer.get(customer.id) || []).sort((a, b) => {
+        const aDate = new Date(a.date_in || a.created_at || 0).getTime()
+        const bDate = new Date(b.date_in || b.created_at || 0).getTime()
+        return plan.sort === 'oldest' ? aDate - bDate : bDate - aDate
+      }),
+      directMatch: directCustomerIds.includes(customer.id),
+    }))
+    .filter((card) => !hasJobFilters(filters) || card.jobs.length > 0)
 
   return {
     cards,
