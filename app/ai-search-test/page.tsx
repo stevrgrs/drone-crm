@@ -1,32 +1,7 @@
-import { createClient } from '@/lib/supabase/server'
 import VoicePromptForm from './VoicePromptForm'
+import { searchCrm, type CustomerCard, type JobCard } from '@/lib/crm/search'
 
 export const dynamic = 'force-dynamic'
-
-type Job = {
-  id: string
-  customer_id: string
-  title?: string | null
-  status?: string | null
-  date_in?: string | null
-  created_at?: string | null
-  description?: string | null
-  diagnosis?: string | null
-  treatment?: string | null
-}
-
-type CustomerRecord = {
-  id: string
-  full_name?: string | null
-  phone?: string | null
-  email?: string | null
-  notes?: string | null
-}
-
-type Customer = CustomerRecord & {
-  jobs: Job[]
-  directMatch: boolean
-}
 
 type Appointment = {
   id: string
@@ -40,69 +15,8 @@ type Appointment = {
 }
 
 type SearchResults = {
-  customers: Customer[]
+  customers: CustomerCard[]
   appointments: Appointment[]
-}
-
-type SearchPlan = {
-  terms: string[]
-  usedOpenAI: boolean
-  error?: string
-}
-
-const STOP_WORDS = new Set([
-  'about',
-  'after',
-  'again',
-  'all',
-  'and',
-  'any',
-  'are',
-  'can',
-  'customer',
-  'customers',
-  'did',
-  'does',
-  'drone',
-  'drones',
-  'find',
-  'for',
-  'from',
-  'get',
-  'give',
-  'greg',
-  'has',
-  'have',
-  'how',
-  'info',
-  'information',
-  'is',
-  'job',
-  'jobs',
-  'look',
-  'me',
-  'need',
-  'needs',
-  'show',
-  'that',
-  'the',
-  'their',
-  'them',
-  'there',
-  'this',
-  'to',
-  'up',
-  'was',
-  'what',
-  'when',
-  'where',
-  'which',
-  'who',
-  'with',
-])
-
-function cleanSearch(value: string) {
-  return value.replace(/[%_,]/g, '').trim().slice(0, 120)
 }
 
 function normalizePhone(value: string) {
@@ -119,7 +33,7 @@ function formatPhone(value?: string | null) {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
 }
 
-function jobAge(job: Job) {
+function jobAge(job: JobCard) {
   const source = job.date_in || job.created_at
   if (!source) return null
   const start = new Date(source)
@@ -138,39 +52,6 @@ function statusClass(status?: string | null) {
     default:
       return 'border-amber-500/30 bg-amber-500/15 text-amber-300'
   }
-}
-
-function uniqueTerms(values: string[]) {
-  const seen = new Set<string>()
-  const terms: string[] = []
-
-  for (const value of values) {
-    const term = cleanSearch(value)
-    const key = term.toLowerCase()
-    if (term.length >= 2 && !seen.has(key)) {
-      seen.add(key)
-      terms.push(term)
-    }
-  }
-
-  return terms.slice(0, 8)
-}
-
-function fallbackSearchTerms(question: string) {
-  const compactQuestion = cleanSearch(question)
-  const words = question
-    .toLowerCase()
-    .replace(/[^a-z0-9@.+\-\s]/g, ' ')
-    .split(/\s+/)
-    .filter((word) => word.length > 2 && !STOP_WORDS.has(word))
-
-  const digitTerm = normalizePhone(question)
-
-  return uniqueTerms([
-    compactQuestion.length <= 48 ? compactQuestion : '',
-    digitTerm.length >= 4 ? digitTerm : '',
-    ...words,
-  ])
 }
 
 function extractResponseText(payload: any) {
@@ -211,7 +92,7 @@ async function askOpenAI(instructions: string, input: string, maxOutputTokens = 
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || 'gpt-5.4-mini',
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
       instructions,
       input,
       max_output_tokens: maxOutputTokens,
@@ -231,145 +112,8 @@ async function askOpenAI(instructions: string, input: string, maxOutputTokens = 
   return text
 }
 
-function parseJsonObject(text: string) {
-  const trimmed = text.trim()
-  const jsonText = trimmed.startsWith('{') ? trimmed : trimmed.match(/\{[\s\S]*\}/)?.[0]
-  if (!jsonText) return null
-
-  try {
-    return JSON.parse(jsonText)
-  } catch {
-    return null
-  }
-}
-
-async function buildSearchPlan(question: string): Promise<SearchPlan> {
-  const fallback = fallbackSearchTerms(question)
-
-  try {
-    const text = await askOpenAI(
-      'You convert a Cardinal Drones CRM question into database search terms. Return only JSON in this shape: {"search_terms":["term"]}. Include names, phone digits, drone models, statuses, dates, and important repair words. Keep terms short and useful for text search. Do not answer the question.',
-      `Question: ${question}`,
-      180
-    )
-
-    const parsed = parseJsonObject(text)
-    const aiTerms = Array.isArray(parsed?.search_terms) ? parsed.search_terms.map(String) : []
-
-    return {
-      terms: uniqueTerms([...aiTerms, ...fallback]),
-      usedOpenAI: true,
-    }
-  } catch (error) {
-    return {
-      terms: fallback,
-      usedOpenAI: false,
-      error: error instanceof Error ? error.message : 'OpenAI search planning failed.',
-    }
-  }
-}
-
-async function searchCustomersJobsAndAppointments(terms: string[]): Promise<SearchResults> {
-  if (!terms.length) return { customers: [], appointments: [] }
-
-  const supabase = await createClient()
-  const customerMap = new Map<string, CustomerRecord>()
-  const directCustomerIds = new Set<string>()
-  const jobMap = new Map<string, Job>()
-  const jobCustomerIds = new Set<string>()
-  const appointmentMap = new Map<string, Appointment>()
-
-  for (const term of terms) {
-    const variants = uniqueTerms([term, normalizePhone(term).length >= 4 ? normalizePhone(term) : ''])
-
-    for (const variant of variants) {
-      const { data: matchedCustomers } = await supabase
-        .from('customers')
-        .select('*')
-        .or(`full_name.ilike.%${variant}%,phone.ilike.%${variant}%,email.ilike.%${variant}%,notes.ilike.%${variant}%`)
-        .limit(20)
-
-      for (const customer of matchedCustomers || []) {
-        customerMap.set(customer.id, customer)
-        directCustomerIds.add(customer.id)
-      }
-
-      const { data: matchedJobsByText } = await supabase
-        .from('service_jobs')
-        .select('*')
-        .or(`title.ilike.%${variant}%,description.ilike.%${variant}%,diagnosis.ilike.%${variant}%,treatment.ilike.%${variant}%,status.ilike.%${variant}%`)
-        .limit(50)
-
-      for (const job of matchedJobsByText || []) {
-        jobMap.set(job.id, job)
-        if (job.customer_id) jobCustomerIds.add(job.customer_id)
-      }
-
-      const { data: matchedAppointments } = await supabase
-        .from('appointments')
-        .select('*')
-        .or(`customer_name.ilike.%${variant}%,phone.ilike.%${variant}%,appointment_type.ilike.%${variant}%,drone.ilike.%${variant}%,notes.ilike.%${variant}%`)
-        .limit(30)
-
-      for (const appointment of matchedAppointments || []) {
-        appointmentMap.set(appointment.id, appointment)
-      }
-    }
-  }
-
-  const allCustomerIds = Array.from(new Set([...directCustomerIds, ...jobCustomerIds]))
-
-  if (allCustomerIds.length) {
-    const { data: relatedCustomers } = await supabase
-      .from('customers')
-      .select('*')
-      .in('id', allCustomerIds)
-
-    for (const customer of relatedCustomers || []) {
-      customerMap.set(customer.id, customer)
-    }
-  }
-
-  if (directCustomerIds.size) {
-    const { data: allJobsForDirectCustomers } = await supabase
-      .from('service_jobs')
-      .select('*')
-      .in('customer_id', Array.from(directCustomerIds))
-
-    for (const job of allJobsForDirectCustomers || []) {
-      jobMap.set(job.id, job)
-    }
-  }
-
-  const jobsByCustomer = new Map<string, Job[]>()
-  for (const job of jobMap.values()) {
-    const list = jobsByCustomer.get(job.customer_id) || []
-    list.push(job)
-    jobsByCustomer.set(job.customer_id, list)
-  }
-
-  const customers = allCustomerIds
-    .map((id) => customerMap.get(id))
-    .filter((customer): customer is CustomerRecord => Boolean(customer))
-    .map((customer) => ({
-      ...customer,
-      jobs: (jobsByCustomer.get(customer.id) || []).sort((a, b) => {
-        const aDate = new Date(a.date_in || a.created_at || 0).getTime()
-        const bDate = new Date(b.date_in || b.created_at || 0).getTime()
-        return bDate - aDate
-      }),
-      directMatch: directCustomerIds.has(customer.id),
-    }))
-
+function buildOpenAIContext(results: SearchResults) {
   return {
-    customers,
-    appointments: Array.from(appointmentMap.values()),
-  }
-}
-
-function buildOpenAIContext(results: SearchResults, terms: string[]) {
-  return {
-    search_terms: terms,
     customers: results.customers.slice(0, 25).map((customer) => ({
       name: customer.full_name,
       phone: formatPhone(customer.phone),
@@ -397,30 +141,69 @@ function buildOpenAIContext(results: SearchResults, terms: string[]) {
   }
 }
 
-async function answerQuestion(question: string, results: SearchResults, plan: SearchPlan) {
+function fallbackAnswer(question: string, results: SearchResults) {
+  const lines: string[] = []
+
+  if (!results.customers.length && !results.appointments.length) {
+    return 'I did not find matching CRM records for that search.'
+  }
+
+  lines.push('Matching CRM records:')
+
+  for (const customer of results.customers) {
+    if (!customer.jobs.length) {
+      lines.push('', customer.full_name || 'Unnamed Customer')
+      if (customer.phone) lines.push(formatPhone(customer.phone))
+      if (customer.notes) lines.push(`Notes: ${customer.notes}`)
+      continue
+    }
+
+    for (const job of customer.jobs) {
+      lines.push('', customer.full_name || 'Unnamed Customer')
+      lines.push(job.title || 'No repair title')
+      if (job.status) lines.push(`Status: ${job.status}`)
+      if (job.date_in) lines.push(`Date in: ${job.date_in}`)
+      if (job.description) lines.push(`Notes: ${job.description}`)
+    }
+  }
+
+  for (const appointment of results.appointments) {
+    lines.push('', appointment.customer_name || 'Unnamed Appointment')
+    lines.push(`${appointment.appointment_type || 'Appointment'}: ${appointment.drone || 'No drone listed'}`)
+    if (appointment.appointment_date) lines.push(`Date: ${appointment.appointment_date}`)
+    if (appointment.appointment_time) lines.push(`Time: ${appointment.appointment_time}`)
+    if (appointment.notes) lines.push(`Notes: ${appointment.notes}`)
+  }
+
+  return lines.join('\n')
+}
+
+async function answerQuestion(question: string, results: SearchResults) {
   try {
-    const context = buildOpenAIContext(results, plan.terms)
+    const context = buildOpenAIContext(results)
     const answer = await askOpenAI(
-      'You are the Cardinal Drones CRM assistant for Greg. Answer using only the CRM_CONTEXT provided. Be concise and practical. Use plain text only. Do not use Markdown, bold markers, headings, code formatting, or asterisks. Include names, phone numbers, job status, dates, appointment details, and notes when they help. If the context does not contain the answer, say what was not found and suggest a more specific search. Never invent customer, job, appointment, or invoice details. This is read-only.',
+      'You are the Cardinal Drones CRM assistant for Greg. Answer using only the CRM_CONTEXT provided. The CRM_CONTEXT has already been filtered by the database. Do not add records that are not in the context. Be concise and practical. Use plain text only. Include names, phone numbers, job status, dates, appointment details, and notes when they help. If the context is empty, say no matching CRM records were found. Never invent customer, job, appointment, or invoice details. This is read-only.',
       `Greg asked:\n${question}\n\nCRM_CONTEXT:\n${JSON.stringify(context, null, 2)}`,
       700
     )
 
-    return cleanAnswerText(answer)
-  } catch (error) {
-    return cleanAnswerText(plan.error || (error instanceof Error ? error.message : 'OpenAI could not answer this question.'))
+    return { text: cleanAnswerText(answer), usedOpenAI: true }
+  } catch {
+    return { text: cleanAnswerText(fallbackAnswer(question, results)), usedOpenAI: false }
   }
 }
 
-export default async function AiSearchTestPage({ searchParams }: { searchParams?: { prompt?: string } }) {
+export default async function AiSearchTestPage({ searchParams }: { searchParams?: { prompt?: string; debug?: string } }) {
   const rawPrompt = searchParams?.prompt || ''
   const question = rawPrompt.trim()
-  const plan = question ? await buildSearchPlan(question) : { terms: [], usedOpenAI: false }
-  const results = question ? await searchCustomersJobsAndAppointments(plan.terms) : { customers: [], appointments: [] }
-  const aiAnswer = question ? await answerQuestion(question, results, plan) : ''
-  const resultCount =
-    results.customers.reduce((count, customer) => count + Math.max(customer.jobs.length, 1), 0) +
-    results.appointments.length
+  const showDebug = searchParams?.debug === '1'
+  const crmSearch = question ? await searchCrm(question, { timeZone: 'America/New_York' }) : null
+  const results: SearchResults = {
+    customers: crmSearch?.cards || [],
+    appointments: [],
+  }
+  const answer = question ? await answerQuestion(question, results) : { text: '', usedOpenAI: false }
+  const resultCount = results.customers.reduce((count, customer) => count + Math.max(customer.jobs.length, 1), 0)
 
   return (
     <main className="min-h-screen bg-black px-4 py-6 text-white">
@@ -437,19 +220,30 @@ export default async function AiSearchTestPage({ searchParams }: { searchParams?
               <div className="mb-2 flex items-center justify-between gap-3">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-red-300">AI Answer</h2>
                 <span className="rounded-full border border-slate-700 px-2 py-1 text-xs text-slate-400">
-                  {plan.usedOpenAI ? 'OpenAI' : 'Fallback'}
+                  {answer.usedOpenAI ? 'OpenAI' : 'Fallback'}
                 </span>
               </div>
-              <p className="whitespace-pre-wrap text-base leading-7 text-white">{aiAnswer}</p>
-              {plan.terms.length > 0 && (
-                <p className="mt-3 text-xs text-slate-500">Searched: {plan.terms.join(', ')}</p>
+              <p className="whitespace-pre-wrap text-base leading-7 text-white">{answer.text}</p>
+              {crmSearch?.debug && (
+                <p className="mt-3 text-xs text-slate-500">
+                  Search plan: {crmSearch.debug.jobMatches} jobs, {crmSearch.debug.customerMatches} customers
+                </p>
               )}
             </article>
+
+            {showDebug && crmSearch?.debug && (
+              <details className="rounded-2xl border border-slate-800 bg-[#0b1220] p-4 text-xs text-slate-300">
+                <summary className="cursor-pointer text-sm font-semibold text-white">Search debug</summary>
+                <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap">
+                  {JSON.stringify(crmSearch.debug, null, 2)}
+                </pre>
+              </details>
+            )}
 
             <p className="text-sm text-slate-400">
               {resultCount
                 ? `${resultCount} read-only CRM result${resultCount === 1 ? '' : 's'} found`
-                : 'No read-only CRM records matched the search terms.'}
+                : 'No read-only CRM records matched the search.'}
             </p>
 
             {results.customers.map((customer) => {
@@ -479,23 +273,6 @@ export default async function AiSearchTestPage({ searchParams }: { searchParams?
                 )
               })
             })}
-
-            {results.appointments.map((appointment) => (
-              <article key={appointment.id} className="rounded-2xl border border-slate-800 bg-[#0b1220] px-5 py-4">
-                <div className="flex justify-between gap-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-white">{appointment.customer_name || 'Unnamed Appointment'}</h2>
-                    <p className="text-sm text-slate-400">{formatPhone(appointment.phone) || 'No phone'}</p>
-                    <p className="mt-2 text-sm text-slate-300">{appointment.appointment_type || 'Appointment'}: {appointment.drone || 'No drone listed'}</p>
-                    {appointment.notes && <p className="mt-2 line-clamp-2 text-sm text-slate-500">{appointment.notes}</p>}
-                  </div>
-                  <div className="shrink-0 text-right text-xs text-slate-400">
-                    <div>{appointment.appointment_date || 'No date'}</div>
-                    <div>{appointment.appointment_time || ''}</div>
-                  </div>
-                </div>
-              </article>
-            ))}
           </section>
         )}
       </div>
