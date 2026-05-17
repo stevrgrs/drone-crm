@@ -1,75 +1,17 @@
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { searchCrm } from '@/lib/crm/search'
 import SearchResultsClient from './SearchResultsClient'
 
-function escapeLike(value: string) {
-  return value.replace(/[%_,]/g, '')
-}
-
-export default async function Home({ searchParams }: { searchParams?: { q?: string } }) {
+export default async function Home({ searchParams }: { searchParams?: { q?: string; debug?: string } }) {
   const query = (searchParams?.q || '').trim()
-  const term = escapeLike(query)
+  const showDebug = searchParams?.debug === '1'
 
-  const supabase = await createClient()
+  const searchResult = query
+    ? await searchCrm(query, { timeZone: 'America/New_York' })
+    : null
 
-  let customerCards: any[] = []
-
-  if (term) {
-    const { data: matchedCustomers } = await supabase
-      .from('customers')
-      .select('*')
-      .or(`full_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%,notes.ilike.%${term}%`)
-      .limit(20)
-
-    const directCustomers = matchedCustomers || []
-    const directCustomerIds = directCustomers.map((c) => c.id).filter(Boolean)
-
-    const { data: matchedJobsByText } = await supabase
-      .from('service_jobs')
-      .select('*')
-      .or(`title.ilike.%${term}%,description.ilike.%${term}%,status.ilike.%${term}%`)
-      .limit(50)
-
-    const textJobs = matchedJobsByText || []
-    const textJobCustomerIds = textJobs.map((job) => job.customer_id).filter(Boolean)
-
-    const allCustomerIds = Array.from(new Set([...directCustomerIds, ...textJobCustomerIds]))
-
-    const { data: relatedCustomers } = allCustomerIds.length
-      ? await supabase.from('customers').select('*').in('id', allCustomerIds)
-      : { data: [] as any[] }
-
-    const allCustomers = relatedCustomers || []
-
-    const jobsByCustomer = new Map<string, any[]>()
-
-    if (directCustomerIds.length) {
-      const { data: allJobsForDirectCustomers } = await supabase
-        .from('service_jobs')
-        .select('*')
-        .in('customer_id', directCustomerIds)
-
-      for (const job of allJobsForDirectCustomers || []) {
-        const list = jobsByCustomer.get(job.customer_id) || []
-        list.push(job)
-        jobsByCustomer.set(job.customer_id, list)
-      }
-    }
-
-    for (const job of textJobs) {
-      const list = jobsByCustomer.get(job.customer_id) || []
-      if (!list.some((existing) => existing.id === job.id)) {
-        list.push(job)
-      }
-      jobsByCustomer.set(job.customer_id, list)
-    }
-
-    customerCards = allCustomers.map((customer) => ({
-      ...customer,
-      jobs: jobsByCustomer.get(customer.id) || [],
-      directMatch: directCustomerIds.includes(customer.id),
-    }))
-  }
+  const customerCards = searchResult?.cards || []
+  const debug = searchResult?.debug || null
 
   return (
     <main className="min-h-screen bg-black px-4 py-6 text-white">
@@ -89,6 +31,8 @@ export default async function Home({ searchParams }: { searchParams?: { q?: stri
               className="mb-3 h-14 w-full rounded-xl bg-[#030712] px-4 text-base text-white placeholder:text-slate-500"
             />
 
+            {showDebug && <input type="hidden" name="debug" value="1" />}
+
             <button
               type="submit"
               className="h-14 w-full rounded-xl bg-red-600 text-lg font-semibold text-white"
@@ -98,10 +42,21 @@ export default async function Home({ searchParams }: { searchParams?: { q?: stri
           </div>
         </form>
 
-        {term && (
+        {query && (
           <div className="mb-6">
             <SearchResultsClient initialCards={customerCards} />
           </div>
+        )}
+
+        {query && showDebug && debug && (
+          <details className="mb-6 rounded-2xl border border-slate-800 bg-[#0b1220] p-4 text-xs text-slate-300">
+            <summary className="cursor-pointer text-sm font-semibold text-white">
+              Search debug
+            </summary>
+            <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap">
+              {JSON.stringify(debug, null, 2)}
+            </pre>
+          </details>
         )}
 
         <div className="mb-6 flex flex-col gap-3">
