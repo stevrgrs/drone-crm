@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/browser'
 
 const STATUS_OPTIONS = [
@@ -14,18 +15,32 @@ function cleanMoneyValue(value: string) {
   return cleaned === '' ? null : Number(cleaned)
 }
 
+function normalizeStatus(value: string) {
+  const normalized = String(value || '').trim().toLowerCase()
+  return STATUS_OPTIONS.some((option) => option.value === normalized) ? normalized : 'in progress'
+}
+
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  return 'Unknown save error'
+}
+
 export default function EditJobForm({ job, customer }: { job: any; customer?: any }) {
+  const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
 
   const [title, setTitle] = useState(job.title || '')
   const [description, setDescription] = useState(job.description || '')
-  const [status, setStatus] = useState(job.status || 'in progress')
+  const [status, setStatus] = useState(normalizeStatus(job.status || 'in progress'))
   const [estimate, setEstimate] = useState(job.estimate ?? '')
   const [finalPrice, setFinalPrice] = useState(job.final_price ?? '')
   const [dateIn, setDateIn] = useState((job.date_in || '').split('T')[0])
   const [saving, setSaving] = useState(false)
 
   async function handleSave() {
+    if (saving) return
+
     setSaving(true)
     try {
       const estimateValue = cleanMoneyValue(estimate)
@@ -44,9 +59,9 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
       const { error } = await supabase
         .from('service_jobs')
         .update({
-          title,
-          description,
-          status,
+          title: title.trim() || 'New Repair',
+          description: description.trim() || null,
+          status: normalizeStatus(status),
           estimate: estimateValue,
           final_price: finalPriceValue,
           date_in: dateIn || null,
@@ -54,12 +69,21 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
         .eq('id', job.id)
 
       if (error) {
-        alert(error.message)
+        alert(`Save failed: ${error.message}`)
         return
       }
 
-      window.location.reload()
-    } finally {
+      router.refresh()
+      window.setTimeout(() => {
+        setSaving(false)
+      }, 300)
+    } catch (error) {
+      const message = errorMessage(error)
+      alert(
+        message === 'Load failed'
+          ? 'Save failed: the network request did not complete. Check signal/Wi-Fi, wait a few seconds, and tap Save again.'
+          : `Save failed: ${message}`
+      )
       setSaving(false)
     }
   }
@@ -93,7 +117,7 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
           <button
             onClick={handleSave}
             disabled={saving}
-            className="rounded-xl bg-red-600 px-4 py-2 text-sm text-white"
+            className="rounded-xl bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-60"
           >
             {saving ? 'Saving...' : 'Save'}
           </button>
@@ -110,7 +134,7 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
 
         <select
           value={status}
-          onChange={(e) => setStatus(e.target.value)}
+          onChange={(e) => setStatus(normalizeStatus(e.target.value))}
           className="p-3 rounded-xl bg-[#030712] border border-slate-700 text-white"
         >
           {STATUS_OPTIONS.map((o) => (
