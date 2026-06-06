@@ -19,6 +19,19 @@ function phoneHref(value?: string | null) {
   return `tel:${digits}`
 }
 
+function formatDate(value?: string | null) {
+  if (!value) return 'No date in'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'No date in'
+
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
 export default async function CompletedJobsPage() {
   const supabase = await createClient()
 
@@ -43,12 +56,14 @@ export default async function CompletedJobsPage() {
 
         <div>
           <h1 className="text-3xl font-bold text-white">Completed Jobs</h1>
-          <p className="mt-2 text-sm text-slate-400">Call customers whose repairs are marked completed.</p>
+          <p className="mt-2 text-sm text-slate-400">
+            Click a job to mark it Completed, In Progress, or Picked Up and record pickup time.
+          </p>
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-[#09111f] p-4">
           <div className="mb-3 flex items-center justify-between">
-            <span className="text-sm text-slate-400">Ready to call</span>
+            <span className="text-sm text-slate-400">Ready for pickup / status update</span>
             <span className="rounded-full bg-slate-800 px-3 py-1 text-sm text-slate-300">
               {(jobs || []).length} job{(jobs || []).length === 1 ? '' : 's'}
             </span>
@@ -66,6 +81,7 @@ export default async function CompletedJobsPage() {
                       <div className="truncate text-base font-semibold text-white">{customer?.full_name || 'Unnamed Customer'}</div>
                       <div className="truncate text-sm text-slate-400">{formatPhoneForDisplay(customer?.phone)}</div>
                       <div className="truncate text-sm text-slate-300">{job.title || 'Repair'}</div>
+                      <div className="mt-1 text-xs text-slate-500">Date in: {formatDate(job.date_in)}</div>
                     </Link>
 
                     {href ? (
@@ -84,7 +100,7 @@ export default async function CompletedJobsPage() {
             </div>
           ) : (
             <div className="rounded-xl border border-slate-800 bg-[#0b1220] p-4 text-slate-400">
-              No completed jobs yet.
+              No completed jobs waiting for pickup.
             </div>
           )}
         </div>
