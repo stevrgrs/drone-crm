@@ -15,7 +15,7 @@ function getProjectRef(url?: string) {
 export default async function SupabaseDebugPage() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
   const projectRef = getProjectRef(supabaseUrl)
-  const expectedPreviewRef = 'kevwtgueujqvimvhceiz'
+  const expectedPreviewRef = 'kevwtgueujqvimvhcejz'
   const hasPublishableKey = Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   )
