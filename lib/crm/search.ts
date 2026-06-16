@@ -17,6 +17,14 @@ type CrmSearchPlan = {
   sort: 'newest' | 'oldest'
 }
 
+type CrmAiPlan = {
+  answer_mode?: 'answer' | 'count' | 'search'
+  customer_name?: string | null
+  job_text?: string | null
+  status?: string | null
+  plain_question?: string | null
+}
+
 export type JobCard = {
   id: string
   customer_id: string
@@ -43,6 +51,7 @@ export type CrmSearchDebug = {
   rawQuery: string
   source: 'structured'
   plan: CrmSearchPlan
+  aiPlan?: CrmAiPlan | null
   customerMatches: number
   jobMatches: number
   returnedCards: number
@@ -170,7 +179,7 @@ function buildStructuredPlan(rawQuery: string, timeZone: string): CrmSearchPlan 
   const phoneDigits = rawQuery.replace(/\D/g, '')
   if (phoneDigits.length >= 7) filters.phone = phoneDigits
 
-  const filler = /\b(show|me|find|search|jobs|job|customers|customer|drones|drone|that|came|come|in|from|with|the|a|an|for|all|list|what|which|were|was|during|dropped|off|brought|received|intake)\b/gi
+  const filler = /\b(show|me|find|search|jobs|job|customers|customer|drones|drone|that|came|come|in|from|with|the|a|an|for|all|list|what|which|were|was|during|dropped|off|brought|received|intake|model|models|does|do|have|has|had|we|our|how|many|total|count|tell|about|please)\b/gi
   const remainingText = cleanedText.replace(filler, ' ').replace(/\s+/g, ' ').trim()
 
   if (remainingText) {
@@ -203,20 +212,188 @@ function applyJobFilters<T>(query: T, filters: CrmSearchFilters): T {
   return nextQuery as T
 }
 
+function extractLikelyCustomerName(rawQuery: string) {
+  const patterns = [
+    /\b(?:what|which)\s+(?:model\s+)?(?:drone|drones|job|jobs)\s+(?:does|do|did)?\s+(.+?)\s+(?:have|has|had)\b/i,
+    /\b(?:for|about)\s+([a-z][a-z' -]+)$/i,
+  ]
+
+  for (const pattern of patterns) {
+    const match = rawQuery.match(pattern)
+    const value = match?.[1]?.replace(/[?.!]/g, '').trim()
+    if (value && value.split(/\s+/).length >= 2) return value
+  }
+
+  return null
+}
+
+function createSearchTermVariants(term: string) {
+  const cleaned = term.replace(/[?.!]/g, '').replace(/\s+/g, ' ').trim()
+  if (!cleaned) return []
+
+  const variants = new Set<string>([cleaned])
+  const compact = cleaned.replace(/\s+/g, '')
+  if (compact !== cleaned) variants.add(compact)
+
+  const spacedModel = cleaned.replace(/([a-zA-Z]+)(\d+)/g, '$1 $2').replace(/(\d+)([a-zA-Z]+)/g, '$1 $2')
+  if (spacedModel !== cleaned) variants.add(spacedModel)
+
+  const withoutDji = cleaned.replace(/^dji\s+/i, '').trim()
+  if (withoutDji && withoutDji !== cleaned) variants.add(withoutDji)
+
+  return Array.from(variants)
+}
+
+function mergeAiPlan(plan: CrmSearchPlan, aiPlan: CrmAiPlan | null, rawQuery: string) {
+  const likelyCustomerName = extractLikelyCustomerName(rawQuery)
+
+  if (likelyCustomerName) {
+    plan.filters.customer_name = likelyCustomerName
+    if (plan.filters.job_text?.toLowerCase().includes(likelyCustomerName.toLowerCase())) {
+      plan.filters.job_text = null
+    }
+  }
+
+  if (!aiPlan) return
+
+  if (aiPlan.customer_name) {
+    plan.filters.customer_name = aiPlan.customer_name
+  }
+
+  if (aiPlan.job_text) {
+    plan.filters.job_text = aiPlan.job_text
+  }
+
+  if (aiPlan.status) {
+    plan.filters.status = aiPlan.status
+  }
+}
+
+async function getOpenAiPlan(rawQuery: string, errors: string[]): Promise<CrmAiPlan | null> {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) return null
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        temperature: 0,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You convert natural-language CRM questions into a small JSON search plan. Return only JSON with keys: answer_mode, customer_name, job_text, status, plain_question. answer_mode is answer, count, or search. customer_name is a person/business name when the question is about a specific customer. job_text is a drone model, repair issue, serial clue, or job keyword. status is urgent, completed, picked up, in progress, or pending when present. Use null for unknown fields.',
+          },
+          {
+            role: 'user',
+            content: rawQuery,
+          },
+        ],
+      }),
+    })
+
+    if (!response.ok) {
+      errors.push(`OpenAI plan error: ${response.status}`)
+      return null
+    }
+
+    const json = await response.json()
+    const content = json?.choices?.[0]?.message?.content
+    if (!content) return null
+
+    return JSON.parse(content) as CrmAiPlan
+  } catch (error) {
+    errors.push(`OpenAI plan error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    return null
+  }
+}
+
+function buildAnswerContext(cards: CustomerCard[]) {
+  return cards.slice(0, 20).map((customer) => ({
+    customer: {
+      id: customer.id,
+      full_name: customer.full_name,
+      phone: customer.phone,
+      email: customer.email,
+      notes: customer.notes,
+    },
+    jobs: customer.jobs.slice(0, 10).map((job) => ({
+      id: job.id,
+      title: job.title,
+      description: job.description,
+      diagnosis: job.diagnosis,
+      treatment: job.treatment,
+      status: job.status,
+      date_in: job.date_in,
+      created_at: job.created_at,
+    })),
+  }))
+}
+
+async function getOpenAiAnswer(rawQuery: string, cards: CustomerCard[], aiPlan: CrmAiPlan | null, errors: string[]) {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) return null
+
+  const context = buildAnswerContext(cards)
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        temperature: 0.2,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You answer questions for Cardinal Drones CRM using only the provided CRM records. Be direct and plain English, like a helpful shop assistant. If the records do not contain the answer, say you could not find it in the CRM. Do not invent customers, drone models, dates, diagnoses, or counts. For count questions, count from the provided records and say what you counted.',
+          },
+          {
+            role: 'user',
+            content: JSON.stringify({ question: rawQuery, plan: aiPlan, records: context }),
+          },
+        ],
+      }),
+    })
+
+    if (!response.ok) {
+      errors.push(`OpenAI answer error: ${response.status}`)
+      return null
+    }
+
+    const json = await response.json()
+    return json?.choices?.[0]?.message?.content?.trim() || null
+  } catch (error) {
+    errors.push(`OpenAI answer error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    return null
+  }
+}
+
 export async function searchCrm(rawQuery: string, options?: { timeZone?: string }) {
   const query = rawQuery.trim()
   const timeZone = options?.timeZone || 'America/New_York'
   const errors: string[] = []
   const plan = buildStructuredPlan(query, timeZone)
-  const filters = plan.filters
 
   if (!query) {
     return {
       cards: [] as CustomerCard[],
+      answer: null as string | null,
       debug: {
         rawQuery,
         source: 'structured' as const,
         plan,
+        aiPlan: null,
         customerMatches: 0,
         jobMatches: 0,
         returnedCards: 0,
@@ -225,8 +402,13 @@ export async function searchCrm(rawQuery: string, options?: { timeZone?: string 
     }
   }
 
+  const aiPlan = await getOpenAiPlan(query, errors)
+  mergeAiPlan(plan, aiPlan, query)
+
+  const filters = plan.filters
   const supabase = await createClient()
-  const textTerms = Array.from(new Set([filters.customer_name, filters.job_text].filter(Boolean))) as string[]
+  const baseTextTerms = Array.from(new Set([filters.customer_name, filters.job_text].filter(Boolean))) as string[]
+  const textTerms = Array.from(new Set(baseTextTerms.flatMap(createSearchTermVariants)))
 
   let customerRows: any[] = []
   let jobRows: any[] = []
@@ -330,12 +512,16 @@ export async function searchCrm(rawQuery: string, options?: { timeZone?: string 
     }))
     .filter((card) => !hasJobFilters(filters) || card.jobs.length > 0)
 
+  const answer = await getOpenAiAnswer(query, cards, aiPlan, errors)
+
   return {
     cards,
+    answer,
     debug: {
       rawQuery,
       source: 'structured' as const,
       plan,
+      aiPlan,
       customerMatches: customerRows.length,
       jobMatches: jobRows.length,
       returnedCards: cards.length,
