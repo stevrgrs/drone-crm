@@ -80,6 +80,17 @@ function escapeLike(value: string) {
     .trim()
 }
 
+function cleanExtractedTerm(value?: string | null) {
+  return escapeLike(String(value || ''))
+    .replace(/^that\s+/i, '')
+    .replace(/^have\s+/i, '')
+    .replace(/^has\s+/i, '')
+    .replace(/^with\s+/i, '')
+    .replace(/^(a|an|the)\s+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function formatDateParts(parts: { year: number; month: number; day: number }) {
   return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`
 }
@@ -197,7 +208,7 @@ function buildStructuredPlan(rawQuery: string, timeZone: string): CrmSearchPlan 
   const phoneDigits = rawQuery.replace(/\D/g, '')
   if (phoneDigits.length >= 7) filters.phone = phoneDigits
 
-  const filler = /\b(show|me|find|search|jobs|job|customers|customer|drones|drone|that|came|come|in|from|with|the|a|an|for|all|list|what|which|were|was|during|dropped|off|brought|received|intake|model|models|does|do|have|has|had|we|our|how|many|total|count|tell|about|please)\b/gi
+  const filler = /\b(show|me|find|search|jobs|job|customers|customer|drones|drone|that|came|come|in|from|with|the|a|an|for|all|list|what|which|were|was|during|dropped|off|brought|received|intake|model|models|does|do|have|has|had|we|our|how|many|total|count|tell|about|please|named|name|or)\b/gi
   const remainingText = cleanedText.replace(filler, ' ').replace(/[?.!]/g, ' ').replace(/\s+/g, ' ').trim()
 
   if (remainingText) {
@@ -238,8 +249,29 @@ function extractLikelyCustomerName(rawQuery: string) {
 
   for (const pattern of patterns) {
     const match = rawQuery.match(pattern)
-    const value = match?.[1]?.replace(/[?.!]/g, '').trim()
+    const value = cleanExtractedTerm(match?.[1])
     if (value && value.split(/\s+/).length >= 2) return value
+  }
+
+  return null
+}
+
+function extractNamedCustomerTerm(rawQuery: string) {
+  const match = rawQuery.match(/\bnamed\s+(.+?)(?:\s+or\b|\s+and\b|\s+that\b|[?.!]|$)/i)
+  const value = cleanExtractedTerm(match?.[1])
+  return value || null
+}
+
+function extractLikelyJobTerm(rawQuery: string) {
+  const patterns = [
+    /\b(?:have|has|with)\s+(?:a|an|the)?\s*([a-z0-9][a-z0-9\s'’.-]*?)(?:\s+or\b|\s+and\b|[?.!]|$)/i,
+    /\b(?:model|drone)\s+(?:is\s+)?(?:a|an|the)?\s*([a-z0-9][a-z0-9\s'’.-]*?)(?:\s+or\b|\s+and\b|[?.!]|$)/i,
+  ]
+
+  for (const pattern of patterns) {
+    const match = rawQuery.match(pattern)
+    const value = cleanExtractedTerm(match?.[1])
+    if (value && !/^(customers?|jobs?|drones?)$/i.test(value)) return value
   }
 
   return null
@@ -284,12 +316,19 @@ function recordMatchesTerm(record: any, term: string) {
 
 function mergeAiPlan(plan: CrmSearchPlan, aiPlan: CrmAiPlan | null, rawQuery: string) {
   const likelyCustomerName = extractLikelyCustomerName(rawQuery)
+  const namedCustomer = extractNamedCustomerTerm(rawQuery)
+  const likelyJobTerm = extractLikelyJobTerm(rawQuery)
 
-  if (likelyCustomerName) {
-    plan.filters.customer_name = likelyCustomerName
-    if (plan.filters.job_text?.toLowerCase().includes(likelyCustomerName.toLowerCase())) {
-      plan.filters.job_text = null
-    }
+  if (likelyCustomerName || namedCustomer) {
+    plan.filters.customer_name = likelyCustomerName || namedCustomer
+  }
+
+  if (likelyJobTerm) {
+    plan.filters.job_text = likelyJobTerm
+  }
+
+  if (plan.filters.customer_name && plan.filters.job_text?.toLowerCase().includes(plan.filters.customer_name.toLowerCase())) {
+    plan.filters.job_text = null
   }
 
   if (!aiPlan) return
