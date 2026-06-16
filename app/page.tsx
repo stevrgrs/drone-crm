@@ -3,6 +3,8 @@ import { searchCrm } from '@/lib/crm/search'
 import SearchResultsClient from './SearchResultsClient'
 
 const exampleQueries = [
+  'What model drone does Oliver Rogers have?',
+  'How many customers do we have with Mini 3?',
   'Which customers still have drones to be done?',
   'Show drones that came in today',
   'Completed jobs still waiting for pickup',
@@ -24,6 +26,7 @@ export default async function Home({ searchParams }: { searchParams?: { q?: stri
     : null
 
   const customerCards = searchResult?.cards || []
+  const answer = searchResult?.answer || null
   const debug = searchResult?.debug || null
 
   return (
@@ -43,7 +46,7 @@ export default async function Home({ searchParams }: { searchParams?: { q?: stri
               Ask the shop database
             </h1>
             <p className="mt-1 text-sm text-slate-400">
-              Type normal questions about customers, drones, dates, repair status, pickups, or job notes.
+              Ask normal questions about customers, drones, dates, repair status, pickups, or job notes.
             </p>
           </div>
 
@@ -56,7 +59,7 @@ export default async function Home({ searchParams }: { searchParams?: { q?: stri
               name="q"
               defaultValue={query}
               rows={3}
-              placeholder="Example: Which customers still have drones to be done?"
+              placeholder="Example: What model drone does Oliver Rogers have?"
               className="mb-3 w-full resize-none rounded-2xl border border-slate-700 bg-[#030712] px-4 py-3 text-base text-white outline-none placeholder:text-slate-500 focus:border-red-500"
             />
 
@@ -87,6 +90,15 @@ export default async function Home({ searchParams }: { searchParams?: { q?: stri
           <div className="mb-3 rounded-2xl border border-slate-800 bg-[#050914] px-4 py-3 text-sm text-slate-300">
             <span className="text-slate-500">Showing results for:</span>{' '}
             <span className="font-semibold text-white">{query}</span>
+          </div>
+        )}
+
+        {query && answer && (
+          <div className="mb-4 rounded-2xl border border-red-900/60 bg-[#0b1220] p-5 text-sm leading-6 text-slate-100 shadow-xl shadow-red-950/10">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-red-400">
+              Answer
+            </div>
+            <div className="whitespace-pre-wrap">{answer}</div>
           </div>
         )}
 
