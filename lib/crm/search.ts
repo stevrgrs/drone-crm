@@ -378,6 +378,10 @@ async function getOpenAiAnswer(rawQuery: string, cards: CustomerCard[], aiPlan: 
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) return null
 
+  if (!cards.length) {
+    return 'I could not find any matching CRM records for that question.'
+  }
+
   const context = buildAnswerContext(cards)
 
   try {
@@ -440,7 +444,8 @@ export async function searchCrm(rawQuery: string, options?: { timeZone?: string 
     }
   }
 
-  const aiPlan = await getOpenAiPlan(query, errors)
+  const shouldUsePlanner = process.env.CRM_USE_OPENAI_PLANNER === '1'
+  const aiPlan = shouldUsePlanner ? await getOpenAiPlan(query, errors) : null
   mergeAiPlan(plan, aiPlan, query)
 
   const filters = plan.filters
@@ -477,8 +482,8 @@ export async function searchCrm(rawQuery: string, options?: { timeZone?: string 
     jobRows = jobRows.concat(jobs || [])
   }
 
-  if (filters.job_text) {
-    let broadJobQuery = supabase.from('service_jobs').select('*').limit(500)
+  if (filters.job_text && jobRows.length === 0) {
+    let broadJobQuery = supabase.from('service_jobs').select('*').limit(200)
     broadJobQuery = applyJobFilters(broadJobQuery, filters)
     const { data: broadJobs, error } = await broadJobQuery
     if (error) errors.push(error.message)
