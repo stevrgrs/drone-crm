@@ -58,8 +58,26 @@ export type CrmSearchDebug = {
   errors: string[]
 }
 
+function normalizeSearchText(value: string) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[’']/g, '')
+    .replace(/\b(\w+)s\b/g, '$1')
+    .replace(/([a-z]+)(\d+)/g, '$1 $2')
+    .replace(/(\d+)([a-z]+)/g, '$1 $2')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function escapeLike(value: string) {
-  return value.replace(/[%_,]/g, '')
+  return value
+    .replace(/[’']/g, '')
+    .replace(/[?.!]/g, '')
+    .replace(/\b(\d+)s\b/gi, '$1')
+    .replace(/[%_,]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function formatDateParts(parts: { year: number; month: number; day: number }) {
@@ -180,7 +198,7 @@ function buildStructuredPlan(rawQuery: string, timeZone: string): CrmSearchPlan 
   if (phoneDigits.length >= 7) filters.phone = phoneDigits
 
   const filler = /\b(show|me|find|search|jobs|job|customers|customer|drones|drone|that|came|come|in|from|with|the|a|an|for|all|list|what|which|were|was|during|dropped|off|brought|received|intake|model|models|does|do|have|has|had|we|our|how|many|total|count|tell|about|please)\b/gi
-  const remainingText = cleanedText.replace(filler, ' ').replace(/\s+/g, ' ').trim()
+  const remainingText = cleanedText.replace(filler, ' ').replace(/[?.!]/g, ' ').replace(/\s+/g, ' ').trim()
 
   if (remainingText) {
     filters.job_text = remainingText
@@ -228,7 +246,7 @@ function extractLikelyCustomerName(rawQuery: string) {
 }
 
 function createSearchTermVariants(term: string) {
-  const cleaned = term.replace(/[?.!]/g, '').replace(/\s+/g, ' ').trim()
+  const cleaned = escapeLike(term)
   if (!cleaned) return []
 
   const variants = new Set<string>([cleaned])
@@ -241,7 +259,27 @@ function createSearchTermVariants(term: string) {
   const withoutDji = cleaned.replace(/^dji\s+/i, '').trim()
   if (withoutDji && withoutDji !== cleaned) variants.add(withoutDji)
 
-  return Array.from(variants)
+  const singularNumber = cleaned.replace(/\b(\d+)s\b/gi, '$1')
+  if (singularNumber && singularNumber !== cleaned) variants.add(singularNumber)
+
+  return Array.from(variants).filter(Boolean)
+}
+
+function recordMatchesTerm(record: any, term: string) {
+  const needle = normalizeSearchText(term)
+  if (!needle) return false
+
+  const compactNeedle = needle.replace(/\s+/g, '')
+  const haystack = normalizeSearchText([
+    record.title,
+    record.description,
+    record.diagnosis,
+    record.treatment,
+    record.status,
+  ].filter(Boolean).join(' '))
+  const compactHaystack = haystack.replace(/\s+/g, '')
+
+  return haystack.includes(needle) || compactHaystack.includes(compactNeedle)
 }
 
 function mergeAiPlan(plan: CrmSearchPlan, aiPlan: CrmAiPlan | null, rawQuery: string) {
@@ -315,7 +353,7 @@ async function getOpenAiPlan(rawQuery: string, errors: string[]): Promise<CrmAiP
 }
 
 function buildAnswerContext(cards: CustomerCard[]) {
-  return cards.slice(0, 20).map((customer) => ({
+  return cards.slice(0, 50).map((customer) => ({
     customer: {
       id: customer.id,
       full_name: customer.full_name,
@@ -323,7 +361,7 @@ function buildAnswerContext(cards: CustomerCard[]) {
       email: customer.email,
       notes: customer.notes,
     },
-    jobs: customer.jobs.slice(0, 10).map((job) => ({
+    jobs: customer.jobs.slice(0, 20).map((job) => ({
       id: job.id,
       title: job.title,
       description: job.description,
@@ -415,6 +453,7 @@ export async function searchCrm(rawQuery: string, options?: { timeZone?: string 
 
   for (const textTerm of textTerms) {
     const term = escapeLike(textTerm)
+    if (!term) continue
 
     const { data: customers, error: customerError } = await supabase
       .from('customers')
@@ -436,6 +475,19 @@ export async function searchCrm(rawQuery: string, options?: { timeZone?: string 
     const { data: jobs, error: jobError } = await jobQuery
     if (jobError) errors.push(jobError.message)
     jobRows = jobRows.concat(jobs || [])
+  }
+
+  if (filters.job_text) {
+    let broadJobQuery = supabase.from('service_jobs').select('*').limit(500)
+    broadJobQuery = applyJobFilters(broadJobQuery, filters)
+    const { data: broadJobs, error } = await broadJobQuery
+    if (error) errors.push(error.message)
+
+    const matchingBroadJobs = (broadJobs || []).filter((job) =>
+      textTerms.some((term) => recordMatchesTerm(job, term))
+    )
+
+    jobRows = jobRows.concat(matchingBroadJobs)
   }
 
   if (filters.phone) {
