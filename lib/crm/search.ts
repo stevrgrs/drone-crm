@@ -365,7 +365,7 @@ async function getOpenAiPlan(rawQuery: string, errors: string[]): Promise<CrmAiP
           {
             role: 'system',
             content:
-              'You convert natural-language CRM questions into a small JSON search plan. Return only JSON with keys: answer_mode, customer_name, job_text, status, plain_question. answer_mode is answer, count, or search. customer_name is a person/business name when the question is about a specific customer. job_text is a drone model, repair issue, serial clue, or job keyword. status is urgent, completed, picked up, in progress, or pending when present. Use null for unknown fields.',
+              'You convert natural-language Cardinal Drones CRM questions into JSON. Return only JSON with keys: answer_mode, customer_name, job_text, status, plain_question. answer_mode is answer, count, or search. customer_name is a person/business name when the question asks about a named customer or customers named something. job_text is a drone model, repair issue, serial clue, or job keyword. For OR questions, fill both fields when applicable. Example: "customers named Oliver or that have a Mini 3" => customer_name "Oliver", job_text "Mini 3". status is urgent, completed, picked up, in progress, or pending when present. Use null for unknown fields.',
           },
           {
             role: 'user',
@@ -460,6 +460,35 @@ async function getOpenAiAnswer(rawQuery: string, cards: CustomerCard[], aiPlan: 
   }
 }
 
+async function logCrmSearch(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  payload: {
+    question: string
+    answer: string | null
+    aiPlan: CrmAiPlan | null
+    structuredPlan: CrmSearchPlan
+    customerMatches: number
+    jobMatches: number
+    returnedCards: number
+    errors: string[]
+  }
+) {
+  try {
+    await supabase.from('crm_search_logs').insert({
+      question: payload.question,
+      answer: payload.answer,
+      ai_plan: payload.aiPlan,
+      structured_plan: payload.structuredPlan,
+      customer_matches: payload.customerMatches,
+      job_matches: payload.jobMatches,
+      returned_cards: payload.returnedCards,
+      errors: payload.errors,
+    })
+  } catch {
+    // Logging should never break CRM search. If the optional table is missing, ignore it.
+  }
+}
+
 export async function searchCrm(rawQuery: string, options?: { timeZone?: string }) {
   const query = rawQuery.trim()
   const timeZone = options?.timeZone || 'America/New_York'
@@ -483,7 +512,8 @@ export async function searchCrm(rawQuery: string, options?: { timeZone?: string 
     }
   }
 
-  const shouldUsePlanner = process.env.CRM_USE_OPENAI_PLANNER === '1'
+  // OpenAI-first by default. Set CRM_USE_OPENAI_PLANNER=0 only if you want the fast local parser path.
+  const shouldUsePlanner = process.env.CRM_USE_OPENAI_PLANNER !== '0'
   const aiPlan = shouldUsePlanner ? await getOpenAiPlan(query, errors) : null
   mergeAiPlan(plan, aiPlan, query)
 
@@ -609,6 +639,17 @@ export async function searchCrm(rawQuery: string, options?: { timeZone?: string 
     .filter((card) => !hasJobFilters(filters) || card.jobs.length > 0)
 
   const answer = await getOpenAiAnswer(query, cards, aiPlan, errors)
+
+  await logCrmSearch(supabase, {
+    question: query,
+    answer,
+    aiPlan,
+    structuredPlan: plan,
+    customerMatches: customerRows.length,
+    jobMatches: jobRows.length,
+    returnedCards: cards.length,
+    errors,
+  })
 
   return {
     cards,
