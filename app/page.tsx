@@ -11,6 +11,7 @@ export default async function Home({ searchParams }: { searchParams?: { q?: stri
     : null
 
   const customerCards = searchResult?.cards || []
+  const answer = searchResult?.answer || ''
   const debug = searchResult?.debug || null
 
   return (
@@ -44,7 +45,7 @@ export default async function Home({ searchParams }: { searchParams?: { q?: stri
 
         {query && (
           <div className="mb-6">
-            <SearchResultsClient initialCards={customerCards} />
+            <SearchResultsClient initialCards={customerCards} answer={answer} />
           </div>
         )}
 
@@ -65,6 +66,13 @@ export default async function Home({ searchParams }: { searchParams?: { q?: stri
             className="flex h-14 items-center justify-center rounded-2xl border border-slate-600 text-white"
           >
             + Add Customer
+          </Link>
+
+          <Link
+            href="/ai-intake"
+            className="flex h-14 items-center justify-center rounded-2xl border border-red-600 bg-red-600 text-white"
+          >
+            AI Intake
           </Link>
 
           <Link

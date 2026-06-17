@@ -65,13 +65,19 @@ function getStatusBadgeClass(status?: string | null) {
   }
 }
 
-export default function SearchResultsClient({ initialCards }: { initialCards: CustomerCard[] }) {
+export default function SearchResultsClient({ initialCards, answer }: { initialCards: CustomerCard[]; answer?: string | null }) {
   const rows: SearchRow[] = initialCards.flatMap((c): SearchRow[] =>
     c.jobs.length ? c.jobs.map((j): SearchRow => ({ c, j })) : [{ c, j: null }]
   )
 
   return (
     <div className="space-y-4">
+      {answer && (
+        <div className="rounded-2xl border border-slate-800 bg-[#0b1220] px-5 py-4 text-slate-100">
+          {answer}
+        </div>
+      )}
+
       {rows.map(({ c, j }) => {
         const days = j ? getDaysInShop(j) : null
         const formattedPhone = formatPhoneForDisplay(c.phone)
@@ -100,6 +106,12 @@ export default function SearchResultsClient({ initialCards }: { initialCards: Cu
           </Link>
         )
       })}
+
+      {!rows.length && !answer && (
+        <div className="rounded-2xl border border-slate-800 bg-[#0b1220] px-5 py-4 text-slate-400">
+          No matching CRM records found.
+        </div>
+      )}
     </div>
   )
 }

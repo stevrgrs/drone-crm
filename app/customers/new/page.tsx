@@ -62,7 +62,6 @@ function cleanMoneyValue(value: string) {
 }
 
 export default function NewCustomerPage() {
-  const supabase = createClient()
   const router = useRouter()
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
@@ -97,6 +96,7 @@ export default function NewCustomerPage() {
 
     setSaving(true)
     try {
+      const supabase = createClient()
       const { data: createdCustomer, error: customerError } = await supabase
         .from('customers')
         .insert([{ full_name: fullName.trim(), phone: cleanPhone || null, email: email.trim(), notes: notes.trim() }])

@@ -21,7 +21,6 @@ function formatPhone(value: string) {
 
 export default function NewAppointmentPage() {
   const router = useRouter()
-  const supabase = createClient()
 
   const [customerName, setCustomerName] = useState('')
   const [phone, setPhone] = useState('')
@@ -44,6 +43,7 @@ export default function NewAppointmentPage() {
 
     setSaving(true)
     try {
+      const supabase = createClient()
       const { error } = await supabase.from('appointments').insert([{
         customer_name: customerName.trim(),
         phone: normalizePhone(phone) || null,

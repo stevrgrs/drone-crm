@@ -14,10 +14,13 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         cards: [],
+        answer: '',
         debug: {
           rawQuery: '',
-          source: 'fallback',
+          source: 'structured',
           plan: null,
+          aiPlan: null,
+          answer: '',
           customerMatches: 0,
           jobMatches: 0,
           returnedCards: 0,
