@@ -23,6 +23,66 @@ type IntakeDraft = {
 
 const STATUS_OPTIONS = ['urgent', 'in progress', 'completed', 'picked up']
 
+type IntakeStage =
+  | 'create_supabase_client'
+  | 'insert_customer'
+  | 'insert_service_job'
+  | 'log_intake'
+  | 'parse_intake'
+  | 'find_duplicates'
+  | 'validate_input'
+
+type StageError = Error & { stage?: IntakeStage; cause?: unknown }
+
+function serializeError(error: unknown): Record<string, unknown> {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      cause: error.cause instanceof Error
+        ? { name: error.cause.name, message: error.cause.message }
+        : error.cause ?? null,
+      ownProperties: Object.getOwnPropertyNames(error),
+    }
+  }
+
+  if (error && typeof error === 'object') {
+    const maybeError = error as { name?: unknown; message?: unknown; cause?: unknown }
+
+    return {
+      name: typeof maybeError.name === 'string' ? maybeError.name : 'Object',
+      message: typeof maybeError.message === 'string' ? maybeError.message : JSON.stringify(error),
+      cause: maybeError.cause ?? null,
+      ownProperties: Object.getOwnPropertyNames(error),
+    }
+  }
+
+  return {
+    name: typeof error,
+    message: String(error),
+    cause: null,
+    ownProperties: [],
+  }
+}
+
+function consoleErrorExact(label: string, error: unknown) {
+  console.error(label, serializeError(error), error)
+}
+
+function makeStageError(stage: IntakeStage, error: unknown): StageError {
+  if (error instanceof Error) {
+    const stagedError = error as StageError
+    stagedError.stage = stage
+    return stagedError
+  }
+
+  const serialized = serializeError(error)
+  const wrapped = new Error(String(serialized.message)) as StageError
+  wrapped.stage = stage
+  wrapped.cause = error
+  return wrapped
+}
+
 function normalizePhone(value?: string | null) {
   const digits = String(value || '').replace(/\D/g, '')
   return digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits
@@ -80,8 +140,13 @@ function normalizeDraft(draft: IntakeDraft, timeZone: string): IntakeDraft {
 
 async function logIntake(supabase: Awaited<ReturnType<typeof createClient>>, payload: Record<string, unknown>) {
   try {
-    await supabase.from('crm_intake_logs').insert([payload])
-  } catch {}
+    const { error } = await supabase.from('crm_intake_logs').insert([payload])
+    if (error) {
+      consoleErrorExact('AI intake log_intake Supabase error', makeStageError('log_intake', error))
+    }
+  } catch (error) {
+    consoleErrorExact('AI intake log_intake exception', makeStageError('log_intake', error))
+  }
 }
 
 async function findDuplicates(supabase: Awaited<ReturnType<typeof createClient>>, draft: IntakeDraft) {
@@ -178,14 +243,18 @@ async function saveDraft(
   let customerId = existingCustomerId || null
 
   if (!customerId) {
-    const { data: customer, error } = await supabase
-      .from('customers')
-      .insert([customerPayload])
-      .select('*')
-      .single()
+    try {
+      const { data: customer, error } = await supabase
+        .from('customers')
+        .insert([customerPayload])
+        .select('*')
+        .single()
 
-    if (error) throw new Error(error.message)
-    customerId = customer.id
+      if (error) throw error
+      customerId = customer.id
+    } catch (error) {
+      throw makeStageError('insert_customer', error)
+    }
   }
 
   const estimate = cleanMoney(draft.job.estimate)
@@ -203,32 +272,55 @@ async function saveDraft(
     final_price: finalPrice !== null && !Number.isNaN(finalPrice) ? finalPrice : null,
   }
 
-  const { data: job, error } = await supabase
-    .from('service_jobs')
-    .insert([jobPayload])
-    .select('*')
-    .single()
+  let job
+  try {
+    const result = await supabase
+      .from('service_jobs')
+      .insert([jobPayload])
+      .select('*')
+      .single()
 
-  if (error) throw new Error(error.message)
+    if (result.error) throw result.error
+    job = result.data
+  } catch (error) {
+    throw makeStageError('insert_service_job', error)
+  }
 
   return { customerId, jobId: job.id }
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
+  let supabase: Awaited<ReturnType<typeof createClient>> | null = null
   let rawInput = ''
 
   try {
+    try {
+      supabase = await createClient()
+    } catch (error) {
+      throw makeStageError('create_supabase_client', error)
+    }
+
     const body = await request.json()
     const action = body?.action === 'save' ? 'save' : 'parse'
     const timeZone = typeof body?.timeZone === 'string' ? body.timeZone : 'America/New_York'
 
     if (action === 'parse') {
       rawInput = typeof body?.rawInput === 'string' ? body.rawInput.trim() : ''
-      if (!rawInput) throw new Error('Intake text is required')
+      if (!rawInput) throw makeStageError('validate_input', new Error('Intake text is required'))
 
-      const draft = await parseIntake(rawInput, timeZone)
-      const duplicateCustomers = await findDuplicates(supabase, draft)
+      let draft
+      try {
+        draft = await parseIntake(rawInput, timeZone)
+      } catch (error) {
+        throw makeStageError('parse_intake', error)
+      }
+
+      let duplicateCustomers
+      try {
+        duplicateCustomers = await findDuplicates(supabase, draft)
+      } catch (error) {
+        throw makeStageError('find_duplicates', error)
+      }
 
       await logIntake(supabase, {
         raw_input: rawInput,
@@ -245,7 +337,9 @@ export async function POST(request: Request) {
       ? body.existingCustomerId
       : null
 
-    if (!draft.customer.full_name && !existingCustomerId) throw new Error('Customer name is required')
+    if (!draft.customer.full_name && !existingCustomerId) {
+      throw makeStageError('validate_input', new Error('Customer name is required'))
+    }
 
     const saved = await saveDraft(supabase, draft, existingCustomerId)
 
@@ -260,15 +354,23 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, ...saved })
   } catch (error) {
+    const stage = error && typeof error === 'object' && 'stage' in error
+      ? (error as StageError).stage || 'validate_input'
+      : 'validate_input'
+    const details = serializeError(error)
     const message = error instanceof Error ? error.message : 'Unknown AI intake error'
 
-    await logIntake(supabase, {
-      raw_input: rawInput || null,
-      parsed_result: null,
-      confirmed: false,
-      errors: [message],
-    })
+    consoleErrorExact(`AI intake failed at ${stage}`, error)
 
-    return NextResponse.json({ error: message }, { status: 400 })
+    if (supabase) {
+      await logIntake(supabase, {
+        raw_input: rawInput || null,
+        parsed_result: null,
+        confirmed: false,
+        errors: [{ stage, ...details }],
+      })
+    }
+
+    return NextResponse.json({ error: message, stage, details }, { status: 400 })
   }
 }
