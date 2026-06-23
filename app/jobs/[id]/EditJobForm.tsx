@@ -15,6 +15,21 @@ function cleanMoneyValue(value: string) {
   return cleaned === '' ? null : Number(cleaned)
 }
 
+function formatDateInputValue(value: unknown) {
+  if (!value) return ''
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? '' : value.toISOString().split('T')[0]
+  }
+
+  return String(value).split('T')[0]
+}
+
+function normalizeDateForSave(value: string) {
+  const normalized = formatDateInputValue(value).trim()
+  return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null
+}
+
 function normalizeStatus(value: string) {
   const normalized = String(value || '').trim().toLowerCase()
   return STATUS_OPTIONS.some((option) => option.value === normalized) ? normalized : 'in progress'
@@ -35,7 +50,7 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
   const [status, setStatus] = useState(normalizeStatus(job.status || 'in progress'))
   const [estimate, setEstimate] = useState(job.estimate ?? '')
   const [finalPrice, setFinalPrice] = useState(job.final_price ?? '')
-  const [dateIn, setDateIn] = useState((job.date_in || '').split('T')[0])
+  const [dateIn, setDateIn] = useState(formatDateInputValue(job.date_in))
   const [saving, setSaving] = useState(false)
 
   async function handleSave() {
@@ -64,7 +79,7 @@ export default function EditJobForm({ job, customer }: { job: any; customer?: an
           status: normalizeStatus(status),
           estimate: estimateValue,
           final_price: finalPriceValue,
-          date_in: dateIn || null,
+          date_in: normalizeDateForSave(dateIn),
         })
         .eq('id', job.id)
 
